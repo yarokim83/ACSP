@@ -110,10 +110,16 @@ class OverdueGraph(tk.Toplevel):
             self.canvas.create_text(width/2, height/2, text=f"No {self.current_filter} Data Available")
             return
             
+        # Calculate Overdue Rate
+        total_count = len(data)
+        overdue_count = len([d for d in data if d[1] > 45])
+        rate = (overdue_count / total_count * 100) if total_count > 0 else 0
+
+            
         # Layout Calculations
         left_margin = 50
         right_margin = 20
-        top_margin = 40
+        top_margin = 60
         bottom_margin = 50
         
         graph_width = width - left_margin - right_margin
@@ -146,6 +152,17 @@ class OverdueGraph(tk.Toplevel):
         y_45 = base_y - (45 * scale_factor)
         self.canvas.create_line(left_margin, y_45, width - right_margin, y_45, fill='#FFA500', dash=(4, 4), width=1)
         self.canvas.create_text(width - right_margin - 10, y_45 - 20, text="45 Days Limit", fill='#FFA500', anchor='e', font=('Arial', 9, 'bold'))
+
+        # Draw Overdue Rate
+        rate_text = self.canvas.create_text(width - right_margin, top_margin - 30, 
+                              text=f"Overdue Rate: {rate:.1f}% ({overdue_count}대/{total_count}대)", 
+                              anchor='e', font=('Arial', 20, 'bold'), fill='#FF0000')
+        
+        # Draw Blue Border
+        bbox = self.canvas.bbox(rate_text)
+        if bbox:
+            p = 10 # padding
+            self.canvas.create_rectangle(bbox[0]-p, bbox[1]-p, bbox[2]+p, bbox[3]+p, outline='blue', width=2)
 
         # Draw Bars
         current_x = left_margin + (gap / 2)

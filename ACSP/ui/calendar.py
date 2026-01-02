@@ -67,7 +67,7 @@ class CanvasCalendar(tk.Frame):
                 
                 if day != 0:
                     date_str = f"{self.year}-{self.month:02d}-{day:02d}"
-                    eqs = self.equipment_map.get(date_str)
+                    eq_data = self.equipment_map.get(date_str, {})
                     
                     today = datetime.now().date()
                     this_day = datetime(self.year, self.month, day).date()
@@ -79,12 +79,28 @@ class CanvasCalendar(tk.Frame):
                         
                     self.canvas.create_text(x+14, y+12, text=str(day), anchor='nw', font=("Segoe UI", 13, "bold"), fill="#222")
                     
-                    if eqs:
+                    # Draw QC (Top)
+                    qc_ids = eq_data.get('QC', [])
+                    if qc_ids:
+                        qc_text = ",".join(qc_ids)
+                        # Truncate if too long?
                         self.canvas.create_text(
-                            x+self.cell_width//2, y+34,
-                            text=eqs,
-                            fill="#4a90e2",
-                            font=("Segoe UI", 9, "bold"),
+                            x+self.cell_width//2, y+30,
+                            text=qc_text,
+                            fill="#FF0000", # Red for QC
+                            font=("Segoe UI", 8, "bold"),
+                            anchor='n'
+                        )
+
+                    # Draw ARMGC (Bottom)
+                    armgc_ids = eq_data.get('ARMGC', [])
+                    if armgc_ids:
+                        armgc_text = ",".join(armgc_ids)
+                        self.canvas.create_text(
+                            x+self.cell_width//2, y+50,
+                            text=armgc_text,
+                            fill="#4a90e2", # Blue for ARMGC
+                            font=("Segoe UI", 8, "bold"),
                             anchor='n'
                         )
         
@@ -123,19 +139,9 @@ class MaintenanceCalendar(tk.Toplevel):
         
         # Toggle Buttons (Top of info frame or top of window?)
         # Let's put a header frame at top
-        header_frame = ttk.Frame(self)
-        header_frame.pack(side='top', fill='x', padx=10, pady=5)
-        
-        self.current_filter = 'ARMGC'
-        
-        filter_frame = ttk.Frame(header_frame)
-        filter_frame.pack(side='right')
-        
-        self.btn_armgc = ttk.Button(filter_frame, text="ARMGC", command=lambda: self.switch_filter('ARMGC'))
-        self.btn_armgc.pack(side='left', padx=2)
-        self.btn_qc = ttk.Button(filter_frame, text="QC", command=lambda: self.switch_filter('QC'))
-        self.btn_qc.pack(side='left', padx=2)
-        
+        # Toggle Buttons (Removed)
+        # header_frame = ttk.Frame(self)
+        # header_frame.pack(side='top', fill='x', padx=10, pady=5)
         
         calendar_frame = ttk.Frame(self)
         calendar_frame.pack(side='left', padx=10, pady=10, fill='both', expand=True)
@@ -145,7 +151,6 @@ class MaintenanceCalendar(tk.Toplevel):
         self.month = datetime.now().month
         self.current_selected_date_str = None
         
-        self.update_buttons()
         self.load_maintenance_dates()
         
         self.cal = CanvasCalendar(calendar_frame, self.year, self.month, self.maintenance_equipment_map, self.show_maintenance_info)
@@ -156,11 +161,14 @@ class MaintenanceCalendar(tk.Toplevel):
         
         ttk.Label(info_frame, text="History", font=('Helvetica', 12, 'bold')).pack(pady=5)
         
-        columns = ('Equipment ID', 'Date')
+        columns = ('Type', 'Equipment ID', 'Date')
         self.tree = ttk.Treeview(info_frame, columns=columns, show='headings', height=15)
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
+        self.tree.heading('Type', text='Type')
+        self.tree.column('Type', width=60)
+        self.tree.heading('Equipment ID', text='ID')
+        self.tree.column('Equipment ID', width=60)
+        self.tree.heading('Date', text='Date')
+        self.tree.column('Date', width=90)
             
         scrollbar = ttk.Scrollbar(info_frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -176,19 +184,6 @@ class MaintenanceCalendar(tk.Toplevel):
         ttk.Button(btn_frame, text="Edit", command=self.edit_record).pack(side='left', padx=5, expand=True, fill='x')
         ttk.Button(btn_frame, text="Delete", command=self.delete_record).pack(side='left', padx=5, expand=True, fill='x')
 
-    def switch_filter(self, filter_val):
-        self.current_filter = filter_val
-        self.update_buttons()
-        self.refresh_calendar()
-
-    def update_buttons(self):
-        if self.current_filter == 'ARMGC':
-            self.btn_armgc.state(['pressed'])
-            self.btn_qc.state(['!pressed'])
-        else:
-            self.btn_armgc.state(['!pressed'])
-            self.btn_qc.state(['pressed'])
-
     def load_maintenance_dates(self):
         two_months_ago = datetime.now() - timedelta(days=60)
         two_months_ago_str = two_months_ago.strftime('%Y-%m-%d')
@@ -197,17 +192,23 @@ class MaintenanceCalendar(tk.Toplevel):
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT m.maintenance_date, GROUP_CONCAT(m.equipment_id)
+                SELECT m.maintenance_date, e.type, GROUP_CONCAT(e.id)
                 FROM maintenance_history m
                 JOIN equipment e ON m.equipment_id = e.id
-                WHERE m.maintenance_date >= ? AND e.type = ?
-                GROUP BY m.maintenance_date
-            ''', (two_months_ago_str, self.current_filter))
+                WHERE m.maintenance_date >= ?
+                GROUP BY m.maintenance_date, e.type
+            ''', (two_months_ago_str,))
             
-            for date, equipment_ids in cursor.fetchall():
-                # Dedup logic not needed if group_concat, but replace needed
-                # Also filter out if group_concat mixed types (unlikely given WHERE)
-                self.maintenance_equipment_map[date] = equipment_ids.replace(',', '\n')
+            for date, eq_type, equipment_ids in cursor.fetchall():
+                if date not in self.maintenance_equipment_map:
+                    self.maintenance_equipment_map[date] = {'QC': [], 'ARMGC': []}
+                
+                if equipment_ids:
+                    # Filter out any lingering None or empty strings if specific DB implementations do something weird
+                    ids = [x for x in equipment_ids.replace(' ', '').split(',') if x]
+                    # Map to the correct list
+                    if eq_type in self.maintenance_equipment_map[date]:
+                        self.maintenance_equipment_map[date][eq_type].extend(ids)
                 
         if hasattr(self, 'cal'):
             self.cal.equipment_map = self.maintenance_equipment_map
@@ -221,12 +222,12 @@ class MaintenanceCalendar(tk.Toplevel):
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT m.equipment_id, m.maintenance_date
+                SELECT e.type, m.equipment_id, m.maintenance_date
                 FROM maintenance_history m
                 JOIN equipment e ON m.equipment_id = e.id
-                WHERE m.maintenance_date = ? AND e.type = ?
-                ORDER BY m.equipment_id
-            ''', (date_str, self.current_filter))
+                WHERE m.maintenance_date = ?
+                ORDER BY e.type DESC, m.equipment_id
+            ''', (date_str,))
             
             for row in cursor.fetchall():
                 self.tree.insert('', 'end', values=row)
@@ -283,8 +284,9 @@ class MaintenanceCalendar(tk.Toplevel):
             return
             
         item = self.tree.item(selected[0])
-        old_id = item['values'][0]
-        date_str = item['values'][1]
+        # values = (Type, ID, Date)
+        old_id = item['values'][1]
+        date_str = item['values'][2]
         
         new_id = simpledialog.askinteger("Edit Maintenance", f"Enter new Equipment ID (Current: {old_id}):", parent=self, initialvalue=old_id)
         if new_id and new_id != old_id:
@@ -302,8 +304,8 @@ class MaintenanceCalendar(tk.Toplevel):
             return
             
         item = self.tree.item(selected[0])
-        eq_id = item['values'][0]
-        date_str = item['values'][1]
+        eq_id = item['values'][1]
+        date_str = item['values'][2]
         
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete maintenance record for Unit {eq_id}?"):
             try:
