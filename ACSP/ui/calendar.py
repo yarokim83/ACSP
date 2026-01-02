@@ -121,6 +121,22 @@ class MaintenanceCalendar(tk.Toplevel):
         self.title("Maintenance History Calendar")
         self.geometry("900x650") # Slightly taller for buttons
         
+        # Toggle Buttons (Top of info frame or top of window?)
+        # Let's put a header frame at top
+        header_frame = ttk.Frame(self)
+        header_frame.pack(side='top', fill='x', padx=10, pady=5)
+        
+        self.current_filter = 'ARMGC'
+        
+        filter_frame = ttk.Frame(header_frame)
+        filter_frame.pack(side='right')
+        
+        self.btn_armgc = ttk.Button(filter_frame, text="ARMGC", command=lambda: self.switch_filter('ARMGC'))
+        self.btn_armgc.pack(side='left', padx=2)
+        self.btn_qc = ttk.Button(filter_frame, text="QC", command=lambda: self.switch_filter('QC'))
+        self.btn_qc.pack(side='left', padx=2)
+        
+        
         calendar_frame = ttk.Frame(self)
         calendar_frame.pack(side='left', padx=10, pady=10, fill='both', expand=True)
         
@@ -129,6 +145,7 @@ class MaintenanceCalendar(tk.Toplevel):
         self.month = datetime.now().month
         self.current_selected_date_str = None
         
+        self.update_buttons()
         self.load_maintenance_dates()
         
         self.cal = CanvasCalendar(calendar_frame, self.year, self.month, self.maintenance_equipment_map, self.show_maintenance_info)
@@ -159,6 +176,19 @@ class MaintenanceCalendar(tk.Toplevel):
         ttk.Button(btn_frame, text="Edit", command=self.edit_record).pack(side='left', padx=5, expand=True, fill='x')
         ttk.Button(btn_frame, text="Delete", command=self.delete_record).pack(side='left', padx=5, expand=True, fill='x')
 
+    def switch_filter(self, filter_val):
+        self.current_filter = filter_val
+        self.update_buttons()
+        self.refresh_calendar()
+
+    def update_buttons(self):
+        if self.current_filter == 'ARMGC':
+            self.btn_armgc.state(['pressed'])
+            self.btn_qc.state(['!pressed'])
+        else:
+            self.btn_armgc.state(['!pressed'])
+            self.btn_qc.state(['pressed'])
+
     def load_maintenance_dates(self):
         two_months_ago = datetime.now() - timedelta(days=60)
         two_months_ago_str = two_months_ago.strftime('%Y-%m-%d')
@@ -167,14 +197,16 @@ class MaintenanceCalendar(tk.Toplevel):
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT maintenance_date, GROUP_CONCAT(equipment_id)
-                FROM maintenance_history
-                WHERE maintenance_date >= ?
-                GROUP BY maintenance_date
-            ''', (two_months_ago_str,))
+                SELECT m.maintenance_date, GROUP_CONCAT(m.equipment_id)
+                FROM maintenance_history m
+                JOIN equipment e ON m.equipment_id = e.id
+                WHERE m.maintenance_date >= ? AND e.type = ?
+                GROUP BY m.maintenance_date
+            ''', (two_months_ago_str, self.current_filter))
             
             for date, equipment_ids in cursor.fetchall():
                 # Dedup logic not needed if group_concat, but replace needed
+                # Also filter out if group_concat mixed types (unlikely given WHERE)
                 self.maintenance_equipment_map[date] = equipment_ids.replace(',', '\n')
                 
         if hasattr(self, 'cal'):
@@ -189,11 +221,12 @@ class MaintenanceCalendar(tk.Toplevel):
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT equipment_id, maintenance_date
-                FROM maintenance_history
-                WHERE maintenance_date = ?
-                ORDER BY equipment_id
-            ''', (date_str,))
+                SELECT m.equipment_id, m.maintenance_date
+                FROM maintenance_history m
+                JOIN equipment e ON m.equipment_id = e.id
+                WHERE m.maintenance_date = ? AND e.type = ?
+                ORDER BY m.equipment_id
+            ''', (date_str, self.current_filter))
             
             for row in cursor.fetchall():
                 self.tree.insert('', 'end', values=row)

@@ -14,9 +14,16 @@ def init_database():
             CREATE TABLE IF NOT EXISTS equipment (
                 id INTEGER PRIMARY KEY,
                 last_maintenance_date TEXT,
-                next_maintenance_date TEXT
+                next_maintenance_date TEXT,
+                type TEXT DEFAULT 'ARMGC'
             )
         ''')
+        
+        # Check if 'type' column exists (for migration)
+        cursor.execute("PRAGMA table_info(equipment)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'type' not in columns:
+            cursor.execute("ALTER TABLE equipment ADD COLUMN type TEXT DEFAULT 'ARMGC'")
         
         # Create maintenance history table
         cursor.execute('''
@@ -36,26 +43,43 @@ def init_database():
         conn.commit()
 
 def _populate_initial_equipment(cursor):
-    equipment_list = []
+    # ARMGC: 211-272
+    armgc_list = []
     # 211-216, 221-226, 231-236, 241-246, 251-256, 261-266
     for start in [211, 221, 231, 241, 251, 261]:
-        equipment_list.extend(range(start, start + 6))
+        armgc_list.extend(range(start, start + 6))
     # 271-272
-    equipment_list.extend(range(271, 273))
+    armgc_list.extend(range(271, 273))
     
-    # Check existing
-    cursor.execute('SELECT id FROM equipment')
-    existing_ids = {row[0] for row in cursor.fetchall()}
+    # QC: 101-112
+    qc_list = list(range(101, 113))
     
     today = datetime.now().strftime('%Y-%m-%d')
     next_due = (datetime.now() + timedelta(days=45)).strftime('%Y-%m-%d')
     
-    for eq_id in equipment_list:
-        if eq_id not in existing_ids:
+    # Check existing
+    cursor.execute('SELECT id, type FROM equipment')
+    existing_data = {row[0]: row[1] for row in cursor.fetchall()}
+    
+    # Insert/Update ARMGC
+    for eq_id in armgc_list:
+        if eq_id not in existing_data:
             cursor.execute('''
-                INSERT INTO equipment (id, last_maintenance_date, next_maintenance_date)
-                VALUES (?, ?, ?)
+                INSERT INTO equipment (id, last_maintenance_date, next_maintenance_date, type)
+                VALUES (?, ?, ?, 'ARMGC')
             ''', (eq_id, today, next_due))
+        elif existing_data[eq_id] != 'ARMGC':
+             cursor.execute("UPDATE equipment SET type = 'ARMGC' WHERE id = ?", (eq_id,))
+
+    # Insert/Update QC
+    for eq_id in qc_list:
+        if eq_id not in existing_data:
+            cursor.execute('''
+                INSERT INTO equipment (id, last_maintenance_date, next_maintenance_date, type)
+                VALUES (?, ?, ?, 'QC')
+            ''', (eq_id, today, next_due))
+        elif existing_data[eq_id] != 'QC':
+             cursor.execute("UPDATE equipment SET type = 'QC' WHERE id = ?", (eq_id,))
 
 def calculate_equipment_status(conn, equipment_id):
     """

@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 from ..database import get_connection
 from .calendar import MaintenanceCalendar
+from .graph import OverdueGraph
 from .styles import apply_styles, COLORS, FONTS
 
 class ACSPApp:
@@ -27,6 +28,8 @@ class ACSPApp:
         self.create_dashboard()
         
         # Initial Data Load
+        self.current_type_filter = 'ARMGC' # Default
+        self.current_status_filter = 'all'
         self.load_data()
 
     def create_sidebar(self):
@@ -52,6 +55,7 @@ class ACSPApp:
         ttk.Frame(sidebar, style='Sidebar.TFrame', height=40).pack()
         
         ttk.Button(sidebar, text=" 📅  Calendar View", style='Sidebar.TButton', command=self.show_calendar).pack(fill='x', padx=10, pady=5)
+        ttk.Button(sidebar, text=" 📊  Overdue Graph", style='Sidebar.TButton', command=self.show_graph).pack(fill='x', padx=10, pady=5)
 
         
         # Bottom info
@@ -107,13 +111,28 @@ class ACSPApp:
         
         ttk.Label(header_frame, text="Equipment Status", style='CardHeader.TLabel').pack(side='left')
         
-        # Filter Buttons
+        # Type Filters (Left side of header or separate?)
+        # Let's put them on the left of filters or simply add them
+        
+        type_frame = ttk.Frame(header_frame, style='Card.TFrame')
+        type_frame.pack(side='right', padx=(0, 20))
+        
+        self.btn_armgc = ttk.Button(type_frame, text="ARMGC", command=lambda: self.switch_type('ARMGC'))
+        self.btn_armgc.pack(side='left', padx=2)
+        
+        self.btn_qc = ttk.Button(type_frame, text="QC", command=lambda: self.switch_type('QC'))
+        self.btn_qc.pack(side='left', padx=2)
+        
+        separ = ttk.Separator(header_frame, orient='vertical')
+        separ.pack(side='right', fill='y', padx=10)
+
+        # Status Filter Buttons
         filter_frame = ttk.Frame(header_frame, style='Card.TFrame')
         filter_frame.pack(side='right')
         
-        ttk.Button(filter_frame, text="All", command=lambda: self.load_data('all')).pack(side='left', padx=2)
-        ttk.Button(filter_frame, text="Overdue", command=lambda: self.load_data('overdue')).pack(side='left', padx=2)
-        ttk.Button(filter_frame, text="Warning", command=lambda: self.load_data('warning')).pack(side='left', padx=2)
+        ttk.Button(filter_frame, text="All", command=lambda: self.switch_status('all')).pack(side='left', padx=2)
+        ttk.Button(filter_frame, text="Overdue", command=lambda: self.switch_status('overdue')).pack(side='left', padx=2)
+        ttk.Button(filter_frame, text="Warning", command=lambda: self.switch_status('warning')).pack(side='left', padx=2)
 
         # Treeview
         columns = ('ID', 'Last Maintenance', 'Status', 'Days Passed', 'Remaining')
@@ -179,9 +198,28 @@ class ACSPApp:
         for index, (_, item) in enumerate(items):
             self.tree.move(item, '', index)
 
-    def load_data(self, filter_mode='all'):
+    def switch_type(self, type_val):
+        self.current_type_filter = type_val
+        self.load_data()
+
+    def switch_status(self, status):
+        self.current_status_filter = status
+        self.load_data()
+
+    def load_data(self, filter_mode=None):
+        if filter_mode:
+            self.current_status_filter = filter_mode
+            
         for item in self.tree.get_children():
             self.tree.delete(item)
+            
+        # UI Feedback for active filter (Optional but good)
+        if self.current_type_filter == 'ARMGC':
+            self.btn_armgc.state(['pressed'])
+            self.btn_qc.state(['!pressed'])
+        else:
+            self.btn_armgc.state(['!pressed'])
+            self.btn_qc.state(['pressed'])
             
         total_cnt = 0
         overdue_cnt = 0
@@ -193,7 +231,17 @@ class ACSPApp:
             rows = cursor.fetchall()
             
         for row in rows:
-            id, last_date, _ = row
+            # Row structure: id, last_date, next_date, type (if using index access, be careful with new column)
+            # Safe unpacking if column count varies?
+            # Creating dict or just using index
+            id_val = row[0]
+            last_date = row[1]
+            eq_type = row[3] if len(row) > 3 else 'ARMGC' # Default fallback
+            
+            # Type Filter
+            if eq_type != self.current_type_filter:
+                continue
+                
             total_cnt += 1
             
             last_maintenance = datetime.strptime(last_date, '%Y-%m-%d')
@@ -213,14 +261,14 @@ class ACSPApp:
                 status_text = "Warning"
                 warning_cnt += 1
             
-            # Filter check
-            if filter_mode == 'overdue' and tag != 'overdue':
+            # Status Filter
+            if self.current_status_filter == 'overdue' and tag != 'overdue':
                 continue
-            if filter_mode == 'warning' and tag != 'warning':
+            if self.current_status_filter == 'warning' and tag != 'warning':
                 continue
             
             self.tree.insert('', 'end', values=(
-                id,
+                id_val,
                 last_date,
                 status_text,
                 f"{days_passed} days",
@@ -273,3 +321,9 @@ class ACSPApp:
         cal_win = MaintenanceCalendar(self.root)
         cal_win.transient(self.root)
         cal_win.grab_set()
+
+    def show_graph(self):
+        graph_win = OverdueGraph(self.root)
+        graph_win.transient(self.root)
+        # graph_win.grab_set() # Optional: Modal or not? Let's keep it non-modal so they can compare
+
