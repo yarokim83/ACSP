@@ -36,6 +36,28 @@ def init_database():
             )
         ''')
         
+        # Create rm_list table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS rm_list (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                failure_date TEXT,
+                failure_details TEXT,
+                rm_request_date TEXT,
+                remark TEXT
+            )
+        ''')
+        
+        # Populate initial RM list if empty
+        cursor.execute('SELECT COUNT(*) FROM rm_list')
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''
+                INSERT INTO rm_list (failure_date, failure_details, rm_request_date, remark)
+                VALUES ('2026-06-16', 'QC 104호 Hoist Wire Rope 단선기준 초과', '2026-06-17', 'Wire Rope 단선으로 인한 낙하사고 위험')
+            ''')
+            cursor.execute('''
+                INSERT INTO rm_list (failure_date, failure_details, rm_request_date, remark)
+                VALUES ('2026-06-16', 'ARMGC 256호 Trolley Wheel 진동 소음발생', '2026-06-17', 'Trolley Wheel 이탈로 인한 낙하사고 위험')
+            ''')
         
         # Populate initial equipment list if missing
         _populate_initial_equipment(cursor)

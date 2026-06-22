@@ -56,6 +56,7 @@ class ACSPApp:
         
         ttk.Button(sidebar, text=" 📅  Calendar View", style='Sidebar.TButton', command=self.show_calendar).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 📊  Overdue Graph", style='Sidebar.TButton', command=self.show_graph).pack(fill='x', padx=10, pady=5)
+        ttk.Button(sidebar, text=" 🔧  RM List", style='Sidebar.TButton', command=self.show_rm_list).pack(fill='x', padx=10, pady=5)
 
         
         # Bottom info
@@ -136,7 +137,7 @@ class ACSPApp:
 
         # Treeview
         columns = ('ID', 'Last Maintenance', 'Status', 'Days Passed', 'Remaining')
-        self.tree = ttk.Treeview(list_card, columns=columns, show='headings', height=15)
+        self.tree = ttk.Treeview(list_card, columns=columns, show='headings', height=15, selectmode='extended')
         
         widths = [100, 150, 120, 100, 100]
         aligns = ['center', 'center', 'center', 'center', 'center']
@@ -154,11 +155,90 @@ class ACSPApp:
         scrollbar.pack(side='right', fill='y')
         
         self.tree.bind('<<TreeviewSelect>>', self.on_select)
+        self.tree.bind('<Control-c>', self._copy_selected_rows)
+        self.tree.bind('<Control-a>', self._select_all_rows)
+        self.tree.bind('<Button-3>', self._show_copy_menu)
         
         # Tags for colored text
         self.tree.tag_configure('overdue', foreground=COLORS['danger'])
         self.tree.tag_configure('warning', foreground=COLORS['warning'])
         self.tree.tag_configure('good', foreground=COLORS['success'])
+
+    # -------------------------------------------------------------------------
+    # Copy Support
+    # -------------------------------------------------------------------------
+    def _select_all_rows(self, event=None):
+        all_items = self.tree.get_children()
+        self.tree.selection_set(all_items)
+        return 'break'
+
+    def _copy_selected_rows(self, event=None):
+        selected = self.tree.selection()
+        if not selected:
+            return
+        header = '\t'.join(self.tree['columns'])
+        lines = [header]
+        for item_id in selected:
+            values = self.tree.item(item_id)['values']
+            lines.append('\t'.join(str(v) for v in values))
+        text = '\n'.join(lines)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+
+    def _copy_all_rows(self):
+        all_items = self.tree.get_children()
+        if not all_items:
+            return
+        header = '\t'.join(self.tree['columns'])
+        lines = [header]
+        for item_id in all_items:
+            values = self.tree.item(item_id)['values']
+            lines.append('\t'.join(str(v) for v in values))
+        text = '\n'.join(lines)
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+
+    def _show_copy_menu(self, event):
+        row_id = self.tree.identify_row(event.y)
+        col_id = self.tree.identify_column(event.x)
+        
+        menu = tk.Menu(self.root, tearoff=0)
+        
+        if row_id:
+            # Add clicked row to selection if not already
+            if row_id not in self.tree.selection():
+                self.tree.selection_set(row_id)
+            values = self.tree.item(row_id)['values']
+            
+            # Copy specific cell
+            if col_id:
+                col_index = int(col_id.replace('#', '')) - 1
+                if 0 <= col_index < len(values):
+                    cell_val = str(values[col_index])
+                    menu.add_command(
+                        label=f"Copy \"{cell_val}\"",
+                        command=lambda v=cell_val: self._clipboard_set(v)
+                    )
+            
+            # Copy selected rows
+            selected_count = len(self.tree.selection())
+            menu.add_command(
+                label=f"Copy Selected ({selected_count} rows)",
+                command=self._copy_selected_rows
+            )
+        
+        # Copy all rows
+        total_count = len(self.tree.get_children())
+        menu.add_command(
+            label=f"Copy All Rows ({total_count})",
+            command=self._copy_all_rows
+        )
+        
+        menu.tk_popup(event.x_root, event.y_root)
+
+    def _clipboard_set(self, text):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
 
     # -------------------------------------------------------------------------
     # Logic
@@ -326,4 +406,9 @@ class ACSPApp:
         graph_win = OverdueGraph(self.root)
         graph_win.transient(self.root)
         # graph_win.grab_set() # Optional: Modal or not? Let's keep it non-modal so they can compare
+
+    def show_rm_list(self):
+        from .rm_list import RMListWindow
+        rm_win = RMListWindow(self.root)
+        rm_win.transient(self.root)
 
