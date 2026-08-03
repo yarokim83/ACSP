@@ -51,6 +51,16 @@ def init_database():
             )
         ''')
         
+        # Create email_recipients table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS email_recipients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                email TEXT NOT NULL,
+                type TEXT DEFAULT 'TO'
+            )
+        ''')
+        
         # Populate initial RM list only when the table is first created
         if not rm_table_exists:
             cursor.execute('''
@@ -173,3 +183,123 @@ def delete_maintenance_history(equipment_id, date_str):
         ''', (equipment_id, date_str))
         calculate_equipment_status(conn, equipment_id)
         conn.commit()
+
+# -------------------------------------------------------------------------
+# Email Recipients Management
+# -------------------------------------------------------------------------
+def get_email_recipients():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, name, email, type FROM email_recipients ORDER BY id ASC')
+        rows = cursor.fetchall()
+    
+    recipients = {'TO': [], 'CC': []}
+    for row in rows:
+        r_id, r_name, r_email, r_type = row
+        t_key = 'CC' if r_type.upper() == 'CC' else 'TO'
+        recipients[t_key].append({'id': r_id, 'name': r_name, 'email': r_email, 'type': t_key})
+    return recipients
+
+def add_email_recipient(name, email, type_val='TO'):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO email_recipients (name, email, type)
+            VALUES (?, ?, ?)
+        ''', (name.strip(), email.strip(), type_val.upper()))
+        conn.commit()
+
+def delete_email_recipient(recipient_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM email_recipients WHERE id = ?', (recipient_id,))
+        conn.commit()
+
+# -------------------------------------------------------------------------
+# Report Stats Collector
+# -------------------------------------------------------------------------
+def get_daily_report_stats():
+    today = datetime.now()
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Fetch RM items
+        cursor.execute('SELECT failure_date, failure_details, rm_request_date, remark FROM rm_list ORDER BY rm_request_date DESC')
+        rm_rows = cursor.fetchall()
+        rm_list = []
+        for r in rm_rows:
+            f_date, details, req_date, remark = r
+            try:
+                elapsed = (today - datetime.strptime(req_date, '%Y-%m-%d')).days
+                elapsed_str = f"+{elapsed}" if elapsed >= 0 else str(elapsed)
+            except Exception:
+                elapsed_str = "-"
+            rm_list.append({
+                'failure_date': f_date,
+                'details': details,
+                'rm_request_date': req_date,
+                'elapsed_days': elapsed_str,
+                'remark': remark
+            })
+            
+        # 2. Fetch equipment for QC and ARMGC overdue calculation
+        cursor.execute('SELECT id, last_maintenance_date, type FROM equipment ORDER BY id')
+        eq_rows = cursor.fetchall()
+        
+        qc_data = []
+        armgc_data = []
+        
+        for r in eq_rows:
+            eq_id, last_date_str, eq_type = r[0], r[1], r[2] if len(r) > 2 else 'ARMGC'
+            try:
+                days_passed = (today - datetime.strptime(last_date_str, '%Y-%m-%d')).days
+            except Exception:
+                days_passed = 0
+                
+            item = {'id': eq_id, 'days_passed': days_passed, 'is_overdue': days_passed > 45}
+            if eq_type == 'QC':
+                qc_data.append(item)
+            else:
+                armgc_data.append(item)
+                
+        # 3. Monthly PMS assignments for current month
+        month_prefix = today.strftime('%Y-%m')
+        cursor.execute('SELECT equipment_id, maintenance_date FROM maintenance_history WHERE maintenance_date LIKE ?', (f"{month_prefix}%",))
+        history_rows = cursor.fetchall()
+        
+        calendar_assignments = {} # day_num -> list of crane_ids
+        for h in history_rows:
+            eq_id, m_date = h
+            try:
+                day_num = int(m_date.split('-')[2])
+                if day_num not in calendar_assignments:
+                    calendar_assignments[day_num] = []
+                calendar_assignments[day_num].append(str(eq_id))
+            except Exception:
+                pass
+
+    qc_total = len(qc_data)
+    qc_overdue = len([d for d in qc_data if d['is_overdue']])
+    qc_rate = (qc_overdue / qc_total * 100) if qc_total > 0 else 0
+    
+    armgc_total = len(armgc_data)
+    armgc_overdue = len([d for d in armgc_data if d['is_overdue']])
+    armgc_rate = (armgc_overdue / armgc_total * 100) if armgc_total > 0 else 0
+
+    return {
+        'today_str': today.strftime('%Y-%m-%d'),
+        'today_korean': today.strftime('%Y년 %m월 %d일'),
+        'year': today.year,
+        'month': today.month,
+        'rm_list': rm_list,
+        'qc_data': qc_data,
+        'qc_total': qc_total,
+        'qc_overdue': qc_overdue,
+        'qc_rate': qc_rate,
+        'armgc_data': armgc_data,
+        'armgc_total': armgc_total,
+        'armgc_overdue': armgc_overdue,
+        'armgc_rate': armgc_rate,
+        'calendar_assignments': calendar_assignments
+    }

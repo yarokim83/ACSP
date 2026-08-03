@@ -57,6 +57,7 @@ class ACSPApp:
         ttk.Button(sidebar, text=" 📅  Calendar View", style='Sidebar.TButton', command=self.show_calendar).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 📊  Overdue Graph", style='Sidebar.TButton', command=self.show_graph).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 🔧  RM List", style='Sidebar.TButton', command=self.show_rm_list).pack(fill='x', padx=10, pady=5)
+        ttk.Button(sidebar, text=" 📧  Daily Report", style='Sidebar.TButton', command=self.show_daily_report).pack(fill='x', padx=10, pady=5)
 
         
         # Bottom info
@@ -411,4 +412,9 @@ class ACSPApp:
         from .rm_list import RMListWindow
         rm_win = RMListWindow(self.root)
         rm_win.transient(self.root)
+
+    def show_daily_report(self):
+        from .report import DailyReportWindow
+        report_win = DailyReportWindow(self.root)
+        report_win.transient(self.root)
 
