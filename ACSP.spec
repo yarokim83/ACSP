@@ -29,9 +29,19 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'pandas',
+        'openpyxl',
+        'jinja2',
+        'scipy',
+        'IPython',
+        'notebook',
+        'pytz',
+        'tornado',
+        'zmq',
+    ],
     noarchive=False,
-    optimize=0,
+    optimize=2,
 )
 pyz = PYZ(a.pure)
 

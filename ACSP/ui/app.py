@@ -2,8 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
 from ..database import get_connection
-from .calendar import MaintenanceCalendar
-from .graph import OverdueGraph
 from .styles import apply_styles, COLORS, FONTS
 from ..version import __version__, __app_name__, __full_name__
 
@@ -402,11 +400,13 @@ class ACSPApp:
         messagebox.showinfo("Success", f"Maintenance recorded for Unit {equipment_id}")
 
     def show_calendar(self):
+        from .calendar import MaintenanceCalendar
         cal_win = MaintenanceCalendar(self.root)
         cal_win.transient(self.root)
         cal_win.grab_set()
 
     def show_graph(self):
+        from .graph import OverdueGraph
         graph_win = OverdueGraph(self.root)
         graph_win.transient(self.root)
         # graph_win.grab_set() # Optional: Modal or not? Let's keep it non-modal so they can compare
