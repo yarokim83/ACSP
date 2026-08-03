@@ -1,4 +1,5 @@
 import sqlite3
+import calendar
 from datetime import datetime, timedelta
 
 DB_NAME = 'acsp.db'
@@ -287,6 +288,67 @@ def get_daily_report_stats():
     armgc_overdue = len([d for d in armgc_data if d['is_overdue']])
     armgc_rate = (armgc_overdue / armgc_total * 100) if armgc_total > 0 else 0
 
+    # Calculate historic monthly overdue rates (1월 ~ 현재월)
+    # Past months: calculated as of the last day of each month.
+    # Current month: calculated as of today (메일 배송일 실적).
+    history_qc = {}
+    history_armgc = {}
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, last_maintenance_date, type FROM equipment ORDER BY id')
+        eq_all = cursor.fetchall()
+        
+        qc_ids = [r[0] for r in eq_all if (r[2] if len(r) > 2 else 'ARMGC') == 'QC']
+        armgc_ids = [r[0] for r in eq_all if (r[2] if len(r) > 2 else 'ARMGC') == 'ARMGC']
+        initial_dates = {r[0]: r[1] for r in eq_all}
+        
+        for m in range(1, today.month + 1):
+            if m == today.month:
+                history_qc[m] = round(qc_rate)
+                history_armgc[m] = round(armgc_rate)
+            else:
+                last_day = calendar.monthrange(today.year, m)[1]
+                target_date = datetime(today.year, m, last_day)
+                target_date_str = target_date.strftime('%Y-%m-%d')
+                
+                # QC overdue count on last day of month m
+                q_overdue = 0
+                for q_id in qc_ids:
+                    cursor.execute('''
+                        SELECT maintenance_date FROM maintenance_history
+                        WHERE equipment_id = ? AND maintenance_date <= ?
+                        ORDER BY maintenance_date DESC LIMIT 1
+                    ''', (q_id, target_date_str))
+                    row = cursor.fetchone()
+                    last_m_str = row[0] if row else initial_dates.get(q_id)
+                    try:
+                        days = (target_date - datetime.strptime(last_m_str, '%Y-%m-%d')).days
+                    except Exception:
+                        days = 0
+                    if days > 45:
+                        q_overdue += 1
+                        
+                # ARMGC overdue count on last day of month m
+                a_overdue = 0
+                for a_id in armgc_ids:
+                    cursor.execute('''
+                        SELECT maintenance_date FROM maintenance_history
+                        WHERE equipment_id = ? AND maintenance_date <= ?
+                        ORDER BY maintenance_date DESC LIMIT 1
+                    ''', (a_id, target_date_str))
+                    row = cursor.fetchone()
+                    last_m_str = row[0] if row else initial_dates.get(a_id)
+                    try:
+                        days = (target_date - datetime.strptime(last_m_str, '%Y-%m-%d')).days
+                    except Exception:
+                        days = 0
+                    if days > 45:
+                        a_overdue += 1
+                        
+                history_qc[m] = round((q_overdue / len(qc_ids) * 100) if qc_ids else 0)
+                history_armgc[m] = round((a_overdue / len(armgc_ids) * 100) if armgc_ids else 0)
+
     return {
         'today_str': today.strftime('%Y-%m-%d'),
         'today_korean': today.strftime('%Y년 %m월 %d일'),
@@ -301,5 +363,7 @@ def get_daily_report_stats():
         'armgc_total': armgc_total,
         'armgc_overdue': armgc_overdue,
         'armgc_rate': armgc_rate,
-        'calendar_assignments': calendar_assignments
+        'calendar_assignments': calendar_assignments,
+        'history_qc': history_qc,
+        'history_armgc': history_armgc
     }

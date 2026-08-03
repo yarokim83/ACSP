@@ -174,25 +174,27 @@ class ReportGenerator:
             """
 
         # Overdue Rate History Table HTML (Ultra-compact vertical cell height padding: 2px 4px, font-size: 10pt)
+        # Past months: calculated as of the last day of each month.
+        # Current month: calculated as of today (메일 배송일 실적).
+        history_qc = stats.get('history_qc', {})
+        history_armgc = stats.get('history_armgc', {})
+
         months_headers = "".join([f'<th style="padding:2px 4px; border:1px solid #334155; width:50px; {cell_font} background-color:#f1f5f9; color:#0f172a; text-align:center;">{m} 월</th>' for m in range(1, today.month + 1)])
         
-        qc_rate_str = f"{round(stats['qc_rate'])}%"
-        armgc_rate_str = f"{round(stats['armgc_rate'])}%"
-        
-        qc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
-        armgc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
+        qc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{history_qc.get(m, round(stats["qc_rate"]))}%</td>' for m in range(1, today.month + 1)])
+        armgc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{history_armgc.get(m, round(stats["armgc_rate"]))}%</td>' for m in range(1, today.month + 1)])
 
         html = f"""
         <html>
         <body style="{font_style} margin:20px;">
             
-            <p style="{font_style} margin-bottom:14px;">수신자 제위</p>
+            <p style="{font_style} margin-bottom:12px;">수신자 제위</p>
             
-            <p style="{font_style} margin-bottom:20px;">{header_title_line}</p>
+            <p style="{font_style} margin-bottom:18px;">{header_title_line}</p>
             
-            <!-- 1) RM 요청 List (Width fixed to 650px, table text size 10pt, padding 3px 6px) -->
-            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:8px;">1) RM 요청 List</p>
-            <div style="width:650px; margin-bottom:20px;">
+            <!-- 1) RM 요청 List -->
+            <p style="{font_style} font-weight:bold; margin-top:16px; margin-bottom:6px;">1) RM 요청 List</p>
+            <div style="width:650px; margin-bottom:18px;">
                 <table style="width:650px; border-collapse:collapse; {cell_font}">
                     <thead>
                         <tr style="background-color:#94a3b8; color:#0f172a; font-weight:bold; text-align:center;">
@@ -210,21 +212,20 @@ class ReportGenerator:
             </div>
 
             <!-- 2) 일일작업 계획 -->
-            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:20px;">2) 일일작업 계획 – 첨부 참조</p>
+            <p style="{font_style} font-weight:bold; margin-top:16px; margin-bottom:18px;">2) 일일작업 계획 – 첨부 참조</p>
 
             <!-- 3) Overdue 현황 -->
-            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:6px;">3) Overdue 현황 – 아래표 참조</p>
+            <p style="{font_style} font-weight:bold; margin-top:16px; margin-bottom:4px;">3) Overdue 현황 – 아래표 참조</p>
             <p style="{font_style} margin:2px 0 2px 20px;">- QC : {round(stats['qc_rate'])}% ({stats['qc_total']}대中 {stats['qc_overdue']}대)</p>
-            <p style="{font_style} margin:2px 0 8px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
-            <p style="{cell_font} color:#475569; margin:0 0 20px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
+            <p style="{font_style} margin:2px 0 6px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
+            <p style="{cell_font} color:#475569; margin:0 0 18px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
 
             <!-- 4) 당월 PM ARMGC 배정 대수 & Overdue -->
-            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:10px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
+            <p style="{font_style} font-weight:bold; margin-top:16px; margin-bottom:8px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
             
             <div style="margin-left:20px; width:650px;">
-                <p style="{font_style} font-weight:bold; margin-bottom:6px;">● 월별 Overdue Rate</p>
-                <!-- Ultra-compact Overdue Rate table with small vertical row padding (padding: 2px 4px, font-size: 10pt) -->
-                <table style="border-collapse:collapse; {cell_font} text-align:center; margin-bottom:20px; width:650px;">
+                <p style="{font_style} font-weight:bold; margin-bottom:4px;">● 월별 Overdue Rate</p>
+                <table style="border-collapse:collapse; {cell_font} text-align:center; margin-bottom:18px; width:650px;">
                     <thead>
                         <tr style="background-color:#f1f5f9; font-weight:bold;">
                             <th style="padding:2px 4px; border:1px solid #334155; width:150px; text-align:center; {cell_font}">구분</th>
