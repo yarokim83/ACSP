@@ -256,6 +256,16 @@ def add_email_recipient(name, email, type_val='TO'):
         ''', (name.strip(), email.strip(), type_val.upper()))
         conn.commit()
 
+def update_email_recipient(recipient_id, name, email, type_val='TO'):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE email_recipients 
+            SET name = ?, email = ?, type = ?
+            WHERE id = ?
+        ''', (name.strip(), email.strip(), type_val.upper(), recipient_id))
+        conn.commit()
+
 def delete_email_recipient(recipient_id):
     with get_connection() as conn:
         cursor = conn.cursor()

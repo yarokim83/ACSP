@@ -19,8 +19,9 @@
 #   v1.4.9  - Fix: restore optimize=0 to prevent numpy 2.x docstring stripping crash
 #   v1.5.0  - Feature: Add default 25 team email recipients seed to database
 #   v1.5.1  - Change: Update 25 default recipients type from TO to CC
+#   v1.5.2  - Feature: Add recipient info editing & TO/CC toggle buttons in address book UI
 
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 __app_name__ = "ACSP"
 __full_name__ = "Ai Crane Scheduler Program"
 

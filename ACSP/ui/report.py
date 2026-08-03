@@ -4,6 +4,7 @@ from datetime import datetime
 from ..database import (
     get_email_recipients, 
     add_email_recipient, 
+    update_email_recipient,
     delete_email_recipient, 
     get_daily_report_stats
 )
@@ -120,11 +121,13 @@ class DailyReportWindow(tk.Toplevel):
     # TAB 2: Recipient Manager (수신자 주소록 관리)
     # =========================================================================
     def build_recipients_tab(self):
+        self.selected_recipient_id = None
+        
         # Top Input Panel
         input_card = ttk.Frame(self.tab_recipients, style='Card.TFrame', padding=15)
         input_card.pack(fill='x', pady=(0, 15))
         
-        ttk.Label(input_card, text="Add New Email Recipient (새 수신자 추가)", style='CardHeader.TLabel').grid(row=0, column=0, columnspan=5, sticky='w', pady=(0, 10))
+        ttk.Label(input_card, text="Email Recipient Editor (수신자 추가 및 정보 수정)", style='CardHeader.TLabel').grid(row=0, column=0, columnspan=6, sticky='w', pady=(0, 10))
         
         ttk.Label(input_card, text="구분 (TO/CC)", style='Card.TLabel').grid(row=1, column=0, sticky='w', padx=5)
         ttk.Label(input_card, text="이름 / 직함", style='Card.TLabel').grid(row=1, column=1, sticky='w', padx=5)
@@ -139,11 +142,14 @@ class DailyReportWindow(tk.Toplevel):
         self.entry_name.grid(row=2, column=1, padx=5, pady=5, sticky='ew')
         
         self.rec_email_var = tk.StringVar()
-        self.entry_email = ttk.Entry(input_card, textvariable=self.rec_email_var, width=35)
+        self.entry_email = ttk.Entry(input_card, textvariable=self.rec_email_var, width=32)
         self.entry_email.grid(row=2, column=2, padx=5, pady=5, sticky='ew')
         
-        self.btn_add_rec = ttk.Button(input_card, text="➕ 수신자 추가", style='Action.TButton', command=self.add_recipient)
-        self.btn_add_rec.grid(row=2, column=3, padx=10, pady=5)
+        self.btn_add_rec = ttk.Button(input_card, text="➕ 신규 추가", style='Action.TButton', command=self.add_recipient)
+        self.btn_add_rec.grid(row=2, column=3, padx=5, pady=5)
+        
+        self.btn_edit_rec = ttk.Button(input_card, text="✏️ 선택 수정", style='TButton', command=self.update_recipient)
+        self.btn_edit_rec.grid(row=2, column=4, padx=5, pady=5)
         
         input_card.columnconfigure(1, weight=1)
         input_card.columnconfigure(2, weight=2)
@@ -174,13 +180,30 @@ class DailyReportWindow(tk.Toplevel):
         self.rec_tree.pack(side='left', fill='both', expand=True)
         scrollbar.pack(side='right', fill='y')
         
+        # Treeview Selection Event Binding
+        self.rec_tree.bind('<<TreeviewSelect>>', self.on_recipient_select)
+        
         # Controls
         ctrl_frame = ttk.Frame(self.tab_recipients, style='Main.TFrame')
         ctrl_frame.pack(fill='x', pady=(10, 0))
         
+        ttk.Button(ctrl_frame, text="🔄 구분 (TO ↔ CC) 원클릭 전환", style='TButton', command=self.toggle_recipient_type).pack(side='left')
         ttk.Button(ctrl_frame, text="❌ 선택 수신자 삭제", style='TButton', command=self.delete_recipient).pack(side='right')
 
+    def on_recipient_select(self, event=None):
+        selected = self.rec_tree.selection()
+        if not selected:
+            return
+        item = self.rec_tree.item(selected[0])
+        values = item['values']
+        self.selected_recipient_id = values[0]
+        raw_type = str(values[1]).split(' ')[0] # Extract 'TO' or 'CC' from 'TO (수신)'
+        self.rec_type_var.set(raw_type)
+        self.rec_name_var.set(str(values[2]))
+        self.rec_email_var.set(str(values[3]))
+
     def load_recipients(self):
+        self.selected_recipient_id = None
         for item in self.rec_tree.get_children():
             self.rec_tree.delete(item)
             
@@ -222,6 +245,43 @@ class DailyReportWindow(tk.Toplevel):
         self.rec_email_var.set("")
         self.load_recipients()
         messagebox.showinfo("성공", "수신자가 저장되었습니다.")
+
+    def update_recipient(self):
+        if not hasattr(self, 'selected_recipient_id') or not self.selected_recipient_id:
+            messagebox.showwarning("선택 오류", "수정할 수신자를 아래 목록에서 먼저 선택해 주세요.")
+            return
+            
+        name = self.rec_name_var.get().strip()
+        email = self.rec_email_var.get().strip()
+        type_val = self.rec_type_var.get()
+        
+        if not email or '@' not in email:
+            messagebox.showwarning("입력 오류", "올바른 이메일 주소를 입력해 주세요.")
+            return
+            
+        update_email_recipient(self.selected_recipient_id, name, email, type_val)
+        self.rec_name_var.set("")
+        self.rec_email_var.set("")
+        self.load_recipients()
+        messagebox.showinfo("성공", "수신자 정보가 수정되었습니다.")
+
+    def toggle_recipient_type(self):
+        selected = self.rec_tree.selection()
+        if not selected:
+            messagebox.showwarning("선택 오류", "구분을 전환할 수신자를 목록에서 선택해 주세요.")
+            return
+            
+        item = self.rec_tree.item(selected[0])
+        values = item['values']
+        r_id = values[0]
+        r_name = values[2]
+        r_email = values[3]
+        current_type = str(values[1]).split(' ')[0]
+        new_type = 'CC' if current_type == 'TO' else 'TO'
+        
+        update_email_recipient(r_id, r_name, r_email, new_type)
+        self.load_recipients()
+        messagebox.showinfo("성공", f"'{r_name}' 수신 구분이 [{new_type}]로 변경되었습니다.")
 
     def delete_recipient(self):
         selected = self.rec_tree.selection()
