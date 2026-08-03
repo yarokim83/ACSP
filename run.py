@@ -9,4 +9,12 @@ sys.path.append(str(current_dir))
 from ACSP.main import main
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        import traceback
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        messagebox.showerror("ACSP 시작 오류", f"프로그램 실행 중 오류가 발생했습니다:\n\n{traceback.format_exc()}")

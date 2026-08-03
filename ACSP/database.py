@@ -1,11 +1,19 @@
+import sys
+import os
 import sqlite3
 import calendar
 from datetime import datetime, timedelta
+from pathlib import Path
 
-DB_NAME = 'acsp.db'
+def get_db_path():
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+    else:
+        base_dir = Path(__file__).parent.parent
+    return str(base_dir / 'acsp.db')
 
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(get_db_path())
 
 def init_database():
     with get_connection() as conn:

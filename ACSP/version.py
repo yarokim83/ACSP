@@ -14,8 +14,9 @@
 #   v1.4.3  - Added version rule & versioning system
 #   v1.4.4  - Fix: win32com lazy import (Daily Report 버튼 무반응 근본 원인 해결)
 #   v1.4.6  - Email chart stacked bar style (blue 0~45, red above 45) matching program graph
+#   v1.4.7  - Fix: absolute DB path resolution & safe null date parsing for existing databases
 
-__version__ = "1.4.6"
+__version__ = "1.4.7"
 __app_name__ = "ACSP"
 __full_name__ = "Ai Crane Scheduler Program"
 

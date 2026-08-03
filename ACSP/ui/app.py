@@ -325,11 +325,12 @@ class ACSPApp:
             if eq_type != self.current_type_filter:
                 continue
                 
-            total_cnt += 1
-            
-            last_maintenance = datetime.strptime(last_date, '%Y-%m-%d')
-            today_date = datetime.now()
-            days_passed = (today_date - last_maintenance).days
+            try:
+                last_maintenance = datetime.strptime(last_date, '%Y-%m-%d')
+                days_passed = (datetime.now() - last_maintenance).days
+            except Exception:
+                last_date = datetime.now().strftime('%Y-%m-%d')
+                days_passed = 0
             days_remaining = 45 - days_passed
             
             status_text = "Good"
