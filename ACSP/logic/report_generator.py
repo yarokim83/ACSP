@@ -75,7 +75,7 @@ class ReportGenerator:
         fig, ax = plt.subplots(figsize=(7.5, 5.0), dpi=95)
         ax.axis('off')
         
-        cal = calendar.monthcalendar(year, month)
+        cal = calendar.Calendar(firstweekday=6).monthdayscalendar(year, month)
         days_header = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
         
         rows = len(cal) + 1
