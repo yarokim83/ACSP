@@ -15,16 +15,18 @@ plt.rcParams['axes.unicode_minus'] = False
 class ReportGenerator:
     @staticmethod
     def generate_chart(data, title, overdue_count, total_count, rate, filename):
-        """Generates an optimized bar chart image matching the user's report style."""
+        """Generates a stacked bar chart: blue (0~45 days), red (above 45 days only) — matching program graph style."""
         fig, ax = plt.subplots(figsize=(8, 3.0), dpi=95)
         
         crane_ids = [str(d['id']) for d in data]
         days_passed = [d['days_passed'] for d in data]
         
-        # Color bar: Red if > 45 days, SkyBlue (#62c2e6) otherwise matching screenshot
-        colors = ['#FF0000' if d > 45 else '#62c2e6' for d in days_passed]
+        # Stacked bars: blue portion (0~45), red portion (above 45 only)
+        blue_vals = [min(d, 45) for d in days_passed]
+        red_vals  = [max(d - 45, 0) for d in days_passed]
         
-        bars = ax.bar(crane_ids, days_passed, color=colors, width=0.55)
+        ax.bar(crane_ids, blue_vals, color='#62c2e6', width=0.55, label='Normal (≤ 45 days)')
+        red_bars = ax.bar(crane_ids, red_vals, bottom=blue_vals, color='#FF0000', width=0.55, label='Overdue (> 45 days)')
         
         # Draw 45 Days Limit Line (dashed orange)
         ax.axhline(y=45, color='#FFA500', linestyle=':', linewidth=1.2)
@@ -41,17 +43,17 @@ class ReportGenerator:
         
         plt.xticks(rotation=45 if len(crane_ids) > 20 else 0, fontsize=7)
         
-        # Values on top of bars
-        for bar in bars:
-            height = bar.get_height()
-            if height > 0:
-                ax.annotate(f'{height}',
-                            xy=(bar.get_x() + bar.get_width() / 2, height),
+        # Values on top of each bar (total height)
+        for i, (crane_id, total) in enumerate(zip(crane_ids, days_passed)):
+            if total > 0:
+                ax.annotate(f'{total}',
+                            xy=(i, total),
                             xytext=(0, 2),
                             textcoords="offset points",
-                            ha='center', va='bottom', fontsize=7, fontweight='bold', color='#1e293b')
+                            ha='center', va='bottom', fontsize=7, fontweight='bold',
+                            color='#FF0000' if total > 45 else '#1e293b')
                             
-        # Overdue Rate Badge Box matching exact screenshot style
+        # Overdue Rate Badge Box
         rate_text = f"Overdue Rate: {rate:.1f}% ({overdue_count}대/{total_count}대)"
         ax.text(0.98, 0.88, rate_text, transform=ax.transAxes, fontsize=10,
                 fontweight='bold', color='#FF0000', ha='right', va='top',
@@ -65,6 +67,7 @@ class ReportGenerator:
         plt.savefig(out_path, dpi=95, bbox_inches='tight')
         plt.close(fig)
         return out_path
+
 
     @staticmethod
     def generate_calendar_image(year, month, assignments, filename):
