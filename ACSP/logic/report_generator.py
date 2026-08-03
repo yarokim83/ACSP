@@ -16,8 +16,7 @@ class ReportGenerator:
     @staticmethod
     def generate_chart(data, title, overdue_count, total_count, rate, filename):
         """Generates an optimized bar chart image matching the user's report style."""
-        # Compact aspect ratio (figsize 8x3.2, dpi 95 for lightweight file size ~30KB)
-        fig, ax = plt.subplots(figsize=(8, 3.2), dpi=95)
+        fig, ax = plt.subplots(figsize=(8, 3.0), dpi=95)
         
         crane_ids = [str(d['id']) for d in data]
         days_passed = [d['days_passed'] for d in data]
@@ -54,7 +53,7 @@ class ReportGenerator:
                             
         # Overdue Rate Badge Box matching exact screenshot style
         rate_text = f"Overdue Rate: {rate:.1f}% ({overdue_count}대/{total_count}대)"
-        ax.text(0.98, 0.88, rate_text, transform=ax.transAxes, fontsize=11,
+        ax.text(0.98, 0.88, rate_text, transform=ax.transAxes, fontsize=10,
                 fontweight='bold', color='#FF0000', ha='right', va='top',
                 bbox=dict(boxstyle='square,pad=0.4', facecolor='white', edgecolor='#0000FF', linewidth=1.5))
                 
@@ -69,8 +68,8 @@ class ReportGenerator:
 
     @staticmethod
     def generate_calendar_image(year, month, assignments, filename):
-        """Generates an optimized Monthly PMS Calendar Image matching exact screenshot style."""
-        fig, ax = plt.subplots(figsize=(7.5, 4.8), dpi=95)
+        """Generates an optimized Monthly PMS Calendar Image without text overlap."""
+        fig, ax = plt.subplots(figsize=(7.5, 5.0), dpi=95)
         ax.axis('off')
         
         cal = calendar.monthcalendar(year, month)
@@ -79,23 +78,26 @@ class ReportGenerator:
         rows = len(cal) + 1
         cols = 7
         
-        # Header title
+        # Header title placed high at y=0.96 so it never overlaps day names
         title_str = f"{year}년 {month:02d}월"
-        ax.text(0.5, 0.95, f"◀   {title_str}   ▶", transform=ax.transAxes,
+        ax.text(0.5, 0.96, title_str, transform=ax.transAxes,
                 fontsize=15, fontweight='bold', ha='center', va='top', color='#0f172a')
                 
-        table_top = 0.85
+        # Lower table_top to 0.78 to guarantee ample space below title
+        table_top = 0.78
         cell_width = 1.0 / cols
         cell_height = table_top / rows
         
-        # Draw Day Names
+        # Draw Day Names Header Row
         for col_idx, day_name in enumerate(days_header):
             x = col_idx * cell_width
             y = table_top
             color = '#FF0000' if col_idx == 0 else ('#0000FF' if col_idx == 6 else '#0f172a')
+            
+            # Header background fill
+            ax.add_patch(patches.Rectangle((x, y), cell_width, cell_height, fill=True, facecolor='#f8fafc', edgecolor='#cbd5e1', lw=0.8))
             ax.text(x + cell_width/2, y + cell_height/2, day_name,
                     fontsize=10, fontweight='bold', ha='center', va='center', color=color)
-            ax.add_patch(patches.Rectangle((x, y), cell_width, cell_height, fill=False, edgecolor='#cbd5e1', lw=0.8))
             
         # Draw Calendar Days & Assigned Cranes
         for row_idx, week in enumerate(cal):
@@ -107,8 +109,8 @@ class ReportGenerator:
                 if day != 0:
                     day_color = '#FF0000' if col_idx == 0 else ('#0000FF' if col_idx == 6 else '#0f172a')
                     # Day number
-                    ax.text(x + 0.1 * cell_width, y + cell_height - 0.2 * cell_height, str(day),
-                            fontsize=10, fontweight='bold', ha='left', va='top', color=day_color)
+                    ax.text(x + 0.1 * cell_width, y + cell_height - 0.22 * cell_height, str(day),
+                            fontsize=9.5, fontweight='bold', ha='left', va='top', color=day_color)
                             
                     # Assigned cranes below day number
                     if day in assignments:
@@ -128,7 +130,7 @@ class ReportGenerator:
 
     @staticmethod
     def build_html_body(stats):
-        """Constructs HTML body with high legibility, proper Outlook font inheritance, and spacious layout."""
+        """Constructs HTML body with 11pt font size, compact tables, and non-stretching layout."""
         
         today = datetime.now()
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
@@ -142,56 +144,58 @@ class ReportGenerator:
         actual_pms_count = sum(len(cranes) for cranes in stats['calendar_assignments'].values())
         pms_percent = (actual_pms_count / target_pms_count * 100) if target_pms_count > 0 else 0
         
-        # RM Table Rows HTML (Soft pink background matching original screenshot for active RM items)
+        # Base font style set to 11pt as requested by user
+        font_style = "font-family:'Malgun Gothic', '맑은 고딕', Arial, sans-serif; font-size:11pt; color:#111111; line-height:1.6;"
+        cell_font = "font-family:'Malgun Gothic', '맑은 고딕', sans-serif; font-size:11pt;"
+
+        # RM Table Rows HTML (Compact width 650px, soft pink background for active RM items)
         rm_rows_html = ""
         if stats['rm_list']:
             for rm in stats['rm_list']:
                 rm_rows_html += f"""
                 <tr style="text-align:center; background-color:#fde8e8; color:#9b1c1c;">
-                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif;">{rm['failure_date']}</td>
-                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:left; font-weight:bold;">{rm['details']}</td>
-                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif;">{rm['rm_request_date']}</td>
-                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; font-weight:bold;">{rm['elapsed_days']}</td>
-                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:left;">{rm['remark']}</td>
+                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font}">{rm['failure_date']}</td>
+                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} text-align:left; font-weight:bold;">{rm['details']}</td>
+                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font}">{rm['rm_request_date']}</td>
+                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} font-weight:bold;">{rm['elapsed_days']}</td>
+                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} text-align:left;">{rm['remark']}</td>
                 </tr>
                 """
         else:
-            rm_rows_html = """
+            rm_rows_html = f"""
             <tr style="text-align:center; background-color:#ffffff;">
-                <td colspan="5" style="padding:12px; border:1px solid #cbd5e1; font-size:13px; font-family:'Malgun Gothic', sans-serif; color:#64748b;">특이 RM 요청 List 없음</td>
+                <td colspan="5" style="padding:8px; border:1px solid #cbd5e1; {cell_font} color:#64748b;">특이 RM 요청 List 없음</td>
             </tr>
             """
 
-        # Overdue Rate History Table HTML (1월 ~ 현재월)
-        months_headers = "".join([f'<th style="padding:8px 10px; border:1px solid #334155; width:60px; font-size:13px; font-family:\'Malgun Gothic\', sans-serif; background-color:#f1f5f9; color:#0f172a;">{m}월</th>' for m in range(1, today.month + 1)])
+        # Overdue Rate History Table HTML (Compact vertical cell height padding: 4px 6px)
+        months_headers = "".join([f'<th style="padding:4px 6px; border:1px solid #334155; width:55px; {cell_font} background-color:#f1f5f9; color:#0f172a; text-align:center;">{m} 월</th>' for m in range(1, today.month + 1)])
         
         qc_rate_str = f"{round(stats['qc_rate'])}%"
         armgc_rate_str = f"{round(stats['armgc_rate'])}%"
         
-        qc_trend_cells = "".join([f'<td style="padding:8px 10px; border:1px solid #334155; font-size:13px; font-family:\'Malgun Gothic\', sans-serif;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
-        armgc_trend_cells = "".join([f'<td style="padding:8px 10px; border:1px solid #334155; font-size:13px; font-family:\'Malgun Gothic\', sans-serif;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
-
-        font_style = "font-family:'Malgun Gothic', '맑은 고딕', Arial, sans-serif; font-size:14px; color:#111111; line-height:1.8;"
+        qc_trend_cells = "".join([f'<td style="padding:4px 6px; border:1px solid #334155; {cell_font} text-align:center;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
+        armgc_trend_cells = "".join([f'<td style="padding:4px 6px; border:1px solid #334155; {cell_font} text-align:center;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
 
         html = f"""
         <html>
-        <body style="{font_style} margin:25px;">
+        <body style="{font_style} margin:20px;">
             
-            <p style="{font_style} margin-bottom:16px;">수신자 제위</p>
+            <p style="{font_style} margin-bottom:14px;">수신자 제위</p>
             
-            <p style="{font_style} margin-bottom:24px;">기술팀 "일일작업계획({date_str_short})" 및 정비실적을 송부 드립니다.</p>
+            <p style="{font_style} margin-bottom:20px;">기술팀 "일일작업계획({date_str_short})" 및 정비실적을 송부 드립니다.</p>
             
-            <!-- 1) RM 요청 List -->
-            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:10px;">1) RM 요청 List</p>
-            <div style="width:100%; max-width:750px; margin-bottom:24px;">
-                <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:'Malgun Gothic', sans-serif;">
+            <!-- 1) RM 요청 List (Width fixed to 650px to prevent excessive horizontal stretching) -->
+            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:8px;">1) RM 요청 List</p>
+            <div style="width:650px; margin-bottom:20px;">
+                <table style="width:650px; border-collapse:collapse; {cell_font}">
                     <thead>
                         <tr style="background-color:#94a3b8; color:#0f172a; font-weight:bold; text-align:center;">
-                            <th style="padding:10px; border:1px solid #64748b; width:120px;">고장 발생(확인)일</th>
-                            <th style="padding:10px; border:1px solid #64748b;">고장내용</th>
-                            <th style="padding:10px; border:1px solid #64748b; width:110px;">RM 요청일</th>
-                            <th style="padding:10px; border:1px solid #64748b; width:65px;">경과일</th>
-                            <th style="padding:10px; border:1px solid #64748b;">Remark</th>
+                            <th style="padding:6px; border:1px solid #64748b; width:110px; {cell_font}">고장 발생(확인)일</th>
+                            <th style="padding:6px; border:1px solid #64748b; width:210px; {cell_font}">고장내용</th>
+                            <th style="padding:6px; border:1px solid #64748b; width:95px; {cell_font}">RM 요청일</th>
+                            <th style="padding:6px; border:1px solid #64748b; width:55px; {cell_font}">경과일</th>
+                            <th style="padding:6px; border:1px solid #64748b; width:180px; {cell_font}">Remark</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -201,50 +205,51 @@ class ReportGenerator:
             </div>
 
             <!-- 2) 일일작업 계획 -->
-            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:24px;">2) 일일작업 계획 – 첨부 참조</p>
+            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:20px;">2) 일일작업 계획 – 첨부 참조</p>
 
             <!-- 3) Overdue 현황 -->
-            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:8px;">3) Overdue 현황 – 아래표 참조</p>
-            <p style="{font_style} margin:3px 0 3px 20px;">- QC : {round(stats['qc_rate'])}% ({stats['qc_total']}대中 {stats['qc_overdue']}대)</p>
-            <p style="{font_style} margin:3px 0 10px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
-            <p style="font-family:'Malgun Gothic', sans-serif; font-size:13px; color:#475569; margin:0 0 24px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
+            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:6px;">3) Overdue 현황 – 아래표 참조</p>
+            <p style="{font_style} margin:2px 0 2px 20px;">- QC : {round(stats['qc_rate'])}% ({stats['qc_total']}대中 {stats['qc_overdue']}대)</p>
+            <p style="{font_style} margin:2px 0 8px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
+            <p style="{cell_font} color:#475569; margin:0 0 20px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
 
             <!-- 4) 당월 PM ARMGC 배정 대수 & Overdue -->
-            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:12px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
+            <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:10px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
             
-            <div style="margin-left:20px; width:100%; max-width:750px;">
-                <p style="{font_style} font-weight:bold; margin-bottom:8px;">● 월별 Overdue Rate</p>
-                <table style="border-collapse:collapse; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:center; margin-bottom:24px; width:100%; max-width:680px;">
+            <div style="margin-left:20px; width:650px;">
+                <p style="{font_style} font-weight:bold; margin-bottom:6px;">● 월별 Overdue Rate</p>
+                <!-- Compact Overdue Rate table with small vertical row padding (padding: 4px 6px) -->
+                <table style="border-collapse:collapse; {cell_font} text-align:center; margin-bottom:20px; width:650px;">
                     <thead>
                         <tr style="background-color:#f1f5f9; font-weight:bold;">
-                            <th style="padding:8px 10px; border:1px solid #334155; width:140px; text-align:center;">구분</th>
+                            <th style="padding:4px 6px; border:1px solid #334155; width:150px; text-align:center; {cell_font}">구분</th>
                             {months_headers}
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="padding:8px 10px; border:1px solid #334155; text-align:left; padding-left:12px; font-weight:bold;">Overdue Rate QC</td>
+                            <td style="padding:4px 6px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate QC</td>
                             {qc_trend_cells}
                         </tr>
                         <tr>
-                            <td style="padding:8px 10px; border:1px solid #334155; text-align:left; padding-left:12px; font-weight:bold;">Overdue Rate ARMGC</td>
+                            <td style="padding:4px 6px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate ARMGC</td>
                             {armgc_trend_cells}
                         </tr>
                     </tbody>
                 </table>
 
-                <p style="{font_style} font-weight:bold; margin-bottom:12px;">● QC, ARMGC - Overdue 현황</p>
-                <div style="width:100%; max-width:750px; margin-bottom:20px;">
-                    <img src="cid:qc_chart" style="width:100%; max-width:750px; height:auto; display:block; margin-bottom:18px;">
-                    <img src="cid:armgc_chart" style="width:100%; max-width:750px; height:auto; display:block;">
+                <p style="{font_style} font-weight:bold; margin-bottom:10px;">● QC, ARMGC - Overdue 현황</p>
+                <div style="width:650px; margin-bottom:16px;">
+                    <img src="cid:qc_chart" style="width:650px; height:auto; display:block; margin-bottom:15px;">
+                    <img src="cid:armgc_chart" style="width:650px; height:auto; display:block;">
                 </div>
 
-                <p style="{font_style} margin:18px 0 24px 0;">- PMS 장비 배정 실적 : {today.month}월 PMS 장비 배정 ARMGC Target : {target_pms_count}대 / 실적 {actual_pms_count}대 ({pms_percent:.0f}%)</p>
+                <p style="{font_style} margin:14px 0 20px 0;">- PMS 장비 배정 실적 : {today.month}월 PMS 장비 배정 ARMGC Target : {target_pms_count}대 / 실적 {actual_pms_count}대 ({pms_percent:.0f}%)</p>
             </div>
 
             <!-- 5) 당월 PMS 배정 달력 -->
-            <div style="margin-left:20px; width:100%; max-width:750px; margin-bottom:24px;">
-                <img src="cid:cal_image" style="width:100%; max-width:750px; height:auto; display:block;">
+            <div style="margin-left:20px; width:650px; margin-bottom:20px;">
+                <img src="cid:cal_image" style="width:650px; height:auto; display:block;">
             </div>
 
             <br>
