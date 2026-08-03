@@ -261,17 +261,21 @@ class ReportGenerator:
                 </table>
 
                 <p style="{font_style} font-weight:bold; margin-bottom:10px;">● QC, ARMGC - Overdue 현황</p>
-                <div style="width:650px; margin-bottom:16px;">
-                    <img src="cid:qc_chart" style="width:650px; height:auto; display:block; margin-bottom:15px;">
-                    <img src="cid:armgc_chart" style="width:650px; height:auto; display:block;">
-                </div>
+                <p style="margin:0 0 15px 0; padding:0; clear:both; width:650px;">
+                    <img src="cid:qc_chart" width="650" style="width:650px; max-width:650px; height:auto; display:block; clear:both;">
+                </p>
+                <p style="margin:0 0 15px 0; padding:0; clear:both; width:650px;">
+                    <img src="cid:armgc_chart" width="650" style="width:650px; max-width:650px; height:auto; display:block; clear:both;">
+                </p>
 
                 <p style="{font_style} margin:14px 0 20px 0;">- PMS 장비 배정 실적 : {today.month}월 PMS 장비 배정 ARMGC Target : {target_pms_count}대 / 실적 {actual_pms_count}대 ({pms_percent:.0f}%)</p>
             </div>
 
             <!-- 5) 당월 PMS 배정 달력 -->
-            <div style="margin-left:20px; width:650px; margin-bottom:20px;">
-                <img src="cid:cal_image" style="width:650px; height:auto; display:block;">
+            <div style="margin-left:20px; width:650px; margin-bottom:20px; clear:both;">
+                <p style="margin:0 0 15px 0; padding:0; clear:both; width:650px;">
+                    <img src="cid:cal_image" width="650" style="width:650px; max-width:650px; height:auto; display:block; clear:both;">
+                </p>
             </div>
 
             <br>
