@@ -322,17 +322,25 @@ def get_daily_report_stats():
                 
         # 3. Monthly PMS assignments for current month
         month_prefix = today.strftime('%Y-%m')
-        cursor.execute('SELECT equipment_id, maintenance_date FROM maintenance_history WHERE maintenance_date LIKE ?', (f"{month_prefix}%",))
+        cursor.execute('''
+            SELECT m.equipment_id, m.maintenance_date, e.type
+            FROM maintenance_history m
+            JOIN equipment e ON m.equipment_id = e.id
+            WHERE m.maintenance_date LIKE ?
+            ORDER BY m.maintenance_date ASC, e.type DESC, m.equipment_id ASC
+        ''', (f"{month_prefix}%",))
         history_rows = cursor.fetchall()
         
-        calendar_assignments = {} # day_num -> list of crane_ids
+        calendar_assignments = {} # day_num -> {'QC': [], 'ARMGC': []}
         for h in history_rows:
-            eq_id, m_date = h
+            eq_id, m_date, eq_type = h
             try:
                 day_num = int(m_date.split('-')[2])
                 if day_num not in calendar_assignments:
-                    calendar_assignments[day_num] = []
-                calendar_assignments[day_num].append(str(eq_id))
+                    calendar_assignments[day_num] = {'QC': [], 'ARMGC': []}
+                t_key = 'QC' if eq_type == 'QC' else 'ARMGC'
+                if str(eq_id) not in calendar_assignments[day_num][t_key]:
+                    calendar_assignments[day_num][t_key].append(str(eq_id))
             except Exception:
                 pass
 

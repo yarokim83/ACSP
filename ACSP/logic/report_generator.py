@@ -102,6 +102,8 @@ class ReportGenerator:
             ax.text(x + cell_width/2, y + cell_height/2, day_name,
                     fontsize=10, fontweight='bold', ha='center', va='center', color=color)
             
+        today_date = datetime.now()
+        
         # Draw Calendar Days & Assigned Cranes
         for row_idx, week in enumerate(cal):
             y = table_top - (row_idx + 1) * cell_height
@@ -111,18 +113,46 @@ class ReportGenerator:
                 
                 if day != 0:
                     day_color = '#FF0000' if col_idx == 0 else ('#0000FF' if col_idx == 6 else '#0f172a')
-                    # Day number
+                    
+                    # Highlight Today with an orange oval/circle matching UI calendar
+                    if year == today_date.year and month == today_date.month and day == today_date.day:
+                        circle = patches.Ellipse((x + 0.22*cell_width, y + cell_height - 0.22*cell_height),
+                                                 width=0.28*cell_width, height=0.32*cell_height,
+                                                 fill=False, edgecolor='#ffb347', lw=1.5)
+                        ax.add_patch(circle)
+
+                    # Day number at top-left
                     ax.text(x + 0.1 * cell_width, y + cell_height - 0.22 * cell_height, str(day),
                             fontsize=9.5, fontweight='bold', ha='left', va='top', color=day_color)
                             
-                    # Assigned cranes below day number
+                    # Draw Assigned Cranes (QC in Red, ARMGC in Blue)
                     if day in assignments:
-                        cranes = assignments[day]
-                        cranes_text = "\n".join(cranes[:3])
-                        if len(cranes) > 3:
-                            cranes_text += f"\n+{len(cranes)-3}"
-                        ax.text(x + cell_width/2, y + cell_height*0.35, cranes_text,
-                                fontsize=7.5, color='#0284c7', fontweight='bold', ha='center', va='center')
+                        eq_data = assignments[day]
+                        if isinstance(eq_data, dict):
+                            qc_ids = eq_data.get('QC', [])
+                            armgc_ids = eq_data.get('ARMGC', [])
+                        elif isinstance(eq_data, list):
+                            qc_ids = []
+                            armgc_ids = eq_data
+                        else:
+                            qc_ids, armgc_ids = [], []
+                            
+                        # QC IDs (Red)
+                        if qc_ids:
+                            qc_text = ",".join(qc_ids[:4])
+                            if len(qc_ids) > 4:
+                                qc_text += f"+{len(qc_ids)-4}"
+                            ax.text(x + cell_width/2, y + cell_height*0.52, qc_text,
+                                    fontsize=8, color='#FF0000', fontweight='bold', ha='center', va='center')
+                                    
+                        # ARMGC IDs (Blue)
+                        if armgc_ids:
+                            armgc_text = ",".join(armgc_ids[:4])
+                            if len(armgc_ids) > 4:
+                                armgc_text += f"+{len(armgc_ids)-4}"
+                            y_pos = cell_height*0.22 if qc_ids else cell_height*0.42
+                            ax.text(x + cell_width/2, y + y_pos, armgc_text,
+                                    fontsize=8, color='#2667c9', fontweight='bold', ha='center', va='center')
                                 
         plt.tight_layout()
         temp_dir = tempfile.gettempdir()
