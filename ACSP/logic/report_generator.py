@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import win32com.client
+# win32com.client은 create_outlook_draft() 내부에서 lazy import (EXE 번들링 호환)
 
 # Set Korean font support for matplotlib on Windows
 plt.rcParams['font.family'] = 'Malgun Gothic'
@@ -288,6 +288,11 @@ class ReportGenerator:
     @staticmethod
     def create_outlook_draft(to_emails, cc_emails, subject, html_body, image_map):
         """Creates an Outlook Mail Item with inline images (CID) and opens composition window."""
+        try:
+            import win32com.client  # lazy import: only needed when actually sending
+        except ImportError:
+            return False, "pywin32 라이브러리가 설치되어 있지 않습니다.\n관리자에게 문의하거나 'pip install pywin32'를 실행하세요."
+
         try:
             outlook = win32com.client.Dispatch('Outlook.Application')
             mail = outlook.CreateItem(0) # 0 = olMailItem

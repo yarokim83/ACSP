@@ -416,7 +416,11 @@ class ACSPApp:
         rm_win.transient(self.root)
 
     def show_daily_report(self):
-        from .report import DailyReportWindow
-        report_win = DailyReportWindow(self.root)
-        report_win.transient(self.root)
+        try:
+            from .report import DailyReportWindow
+            report_win = DailyReportWindow(self.root)
+            report_win.transient(self.root)
+        except Exception as e:
+            import traceback
+            messagebox.showerror("Daily Report 오류", f"창을 여는 중 오류가 발생했습니다:\n\n{traceback.format_exc()}")
 
