@@ -128,7 +128,7 @@ class ReportGenerator:
 
     @staticmethod
     def build_html_body(stats):
-        """Constructs HTML body matching the exact wording and layout of the user's original email."""
+        """Constructs HTML body with high legibility, proper Outlook font inheritance, and spacious layout."""
         
         today = datetime.now()
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
@@ -142,54 +142,56 @@ class ReportGenerator:
         actual_pms_count = sum(len(cranes) for cranes in stats['calendar_assignments'].values())
         pms_percent = (actual_pms_count / target_pms_count * 100) if target_pms_count > 0 else 0
         
-        # RM Table Rows HTML
+        # RM Table Rows HTML (Soft pink background matching original screenshot for active RM items)
         rm_rows_html = ""
         if stats['rm_list']:
             for rm in stats['rm_list']:
                 rm_rows_html += f"""
-                <tr style="text-align:center; background-color:#ffffff;">
-                    <td style="padding:6px; border:1px solid #cbd5e1;">{rm['failure_date']}</td>
-                    <td style="padding:6px; border:1px solid #cbd5e1; text-align:left;">{rm['details']}</td>
-                    <td style="padding:6px; border:1px solid #cbd5e1;">{rm['rm_request_date']}</td>
-                    <td style="padding:6px; border:1px solid #cbd5e1; color:#dc2626; font-weight:bold;">{rm['elapsed_days']}</td>
-                    <td style="padding:6px; border:1px solid #cbd5e1; text-align:left;">{rm['remark']}</td>
+                <tr style="text-align:center; background-color:#fde8e8; color:#9b1c1c;">
+                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif;">{rm['failure_date']}</td>
+                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:left; font-weight:bold;">{rm['details']}</td>
+                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif;">{rm['rm_request_date']}</td>
+                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; font-weight:bold;">{rm['elapsed_days']}</td>
+                    <td style="padding:10px; border:1px solid #f87171; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:left;">{rm['remark']}</td>
                 </tr>
                 """
         else:
             rm_rows_html = """
             <tr style="text-align:center; background-color:#ffffff;">
-                <td colspan="5" style="padding:8px; border:1px solid #cbd5e1; color:#64748b;">특이 RM 요청 List 없음</td>
+                <td colspan="5" style="padding:12px; border:1px solid #cbd5e1; font-size:13px; font-family:'Malgun Gothic', sans-serif; color:#64748b;">특이 RM 요청 List 없음</td>
             </tr>
             """
 
         # Overdue Rate History Table HTML (1월 ~ 현재월)
-        months_headers = "".join([f'<th style="padding:5px; border:1px solid #000000; width:60px;">{m}월</th>' for m in range(1, today.month + 1)])
-        # Historic rates (simulated/current for display)
+        months_headers = "".join([f'<th style="padding:8px 10px; border:1px solid #334155; width:60px; font-size:13px; font-family:\'Malgun Gothic\', sans-serif; background-color:#f1f5f9; color:#0f172a;">{m}월</th>' for m in range(1, today.month + 1)])
+        
         qc_rate_str = f"{round(stats['qc_rate'])}%"
         armgc_rate_str = f"{round(stats['armgc_rate'])}%"
         
-        qc_trend_cells = "".join([f'<td style="padding:5px; border:1px solid #000000;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
-        armgc_trend_cells = "".join([f'<td style="padding:5px; border:1px solid #000000;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
+        qc_trend_cells = "".join([f'<td style="padding:8px 10px; border:1px solid #334155; font-size:13px; font-family:\'Malgun Gothic\', sans-serif;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
+        armgc_trend_cells = "".join([f'<td style="padding:8px 10px; border:1px solid #334155; font-size:13px; font-family:\'Malgun Gothic\', sans-serif;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
+
+        font_style = "font-family:'Malgun Gothic', '맑은 고딕', Arial, sans-serif; font-size:14px; color:#111111; line-height:1.8;"
 
         html = f"""
         <html>
-        <body style="font-family:'Malgun Gothic', Arial, sans-serif; color:#000000; line-height:1.7; margin:20px;">
+        <body style="{font_style} margin:25px;">
             
-            <p style="margin-bottom:15px;">수신자 제위</p>
+            <p style="{font_style} margin-bottom:16px;">수신자 제위</p>
             
-            <p style="margin-bottom:20px;">기술팀 "일일작업계획({date_str_short})" 및 정비실적을 송부 드립니다.</p>
+            <p style="{font_style} margin-bottom:24px;">기술팀 "일일작업계획({date_str_short})" 및 정비실적을 송부 드립니다.</p>
             
             <!-- 1) RM 요청 List -->
-            <p style="font-weight:bold; margin-bottom:6px;">1) RM 요청 List</p>
-            <div style="width:100%; max-width:750px; margin-bottom:20px;">
-                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:10px;">1) RM 요청 List</p>
+            <div style="width:100%; max-width:750px; margin-bottom:24px;">
+                <table style="width:100%; border-collapse:collapse; font-size:13px; font-family:'Malgun Gothic', sans-serif;">
                     <thead>
-                        <tr style="background-color:#f1f5f9; color:#000000; font-weight:bold; text-align:center;">
-                            <th style="padding:6px; border:1px solid #cbd5e1; width:110px;">고장 발생(확인)일</th>
-                            <th style="padding:6px; border:1px solid #cbd5e1;">고장내용</th>
-                            <th style="padding:6px; border:1px solid #cbd5e1; width:100px;">RM 요청일</th>
-                            <th style="padding:6px; border:1px solid #cbd5e1; width:60px;">경과일</th>
-                            <th style="padding:6px; border:1px solid #cbd5e1;">Remark</th>
+                        <tr style="background-color:#94a3b8; color:#0f172a; font-weight:bold; text-align:center;">
+                            <th style="padding:10px; border:1px solid #64748b; width:120px;">고장 발생(확인)일</th>
+                            <th style="padding:10px; border:1px solid #64748b;">고장내용</th>
+                            <th style="padding:10px; border:1px solid #64748b; width:110px;">RM 요청일</th>
+                            <th style="padding:10px; border:1px solid #64748b; width:65px;">경과일</th>
+                            <th style="padding:10px; border:1px solid #64748b;">Remark</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -199,54 +201,54 @@ class ReportGenerator:
             </div>
 
             <!-- 2) 일일작업 계획 -->
-            <p style="font-weight:bold; margin-bottom:20px;">2) 일일작업 계획 – 첨부 참조</p>
+            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:24px;">2) 일일작업 계획 – 첨부 참조</p>
 
             <!-- 3) Overdue 현황 -->
-            <p style="font-weight:bold; margin-bottom:6px;">3) Overdue 현황 – 아래표 참조</p>
-            <p style="margin:2px 0 2px 20px;">- QC : {round(stats['qc_rate'])}% ({stats['qc_total']}대中 {stats['qc_overdue']}대)</p>
-            <p style="margin:2px 0 10px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
-            <p style="font-size:12px; color:#333333; margin:0 0 20px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
+            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:8px;">3) Overdue 현황 – 아래표 참조</p>
+            <p style="{font_style} margin:3px 0 3px 20px;">- QC : {round(stats['qc_rate'])}% ({stats['qc_total']}대中 {stats['qc_overdue']}대)</p>
+            <p style="{font_style} margin:3px 0 10px 20px;">- ARMGC : {round(stats['armgc_rate'])}% ({stats['armgc_total']}대中 {stats['armgc_overdue']}대)</p>
+            <p style="font-family:'Malgun Gothic', sans-serif; font-size:13px; color:#475569; margin:0 0 24px 20px;">※ Overdue : 지정된 기간(1회/45일)內 PM 미시행 Rate</p>
 
             <!-- 4) 당월 PM ARMGC 배정 대수 & Overdue -->
-            <p style="font-weight:bold; margin-bottom:10px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
+            <p style="{font_style} font-weight:bold; font-size:15px; margin-top:20px; margin-bottom:12px;">4) {today.month}월 PM ARMGC 배정 대수 : {actual_pms_count}대 / Target {target_pms_count}대(1대/Working day)</p>
             
             <div style="margin-left:20px; width:100%; max-width:750px;">
-                <p style="font-weight:bold; margin-bottom:6px;">● 월별 Overdue Rate</p>
-                <table style="border-collapse:collapse; font-size:12px; text-align:center; margin-bottom:20px; width:100%; max-width:650px;">
+                <p style="{font_style} font-weight:bold; margin-bottom:8px;">● 월별 Overdue Rate</p>
+                <table style="border-collapse:collapse; font-size:13px; font-family:'Malgun Gothic', sans-serif; text-align:center; margin-bottom:24px; width:100%; max-width:680px;">
                     <thead>
-                        <tr style="background-color:#f8fafc; font-weight:bold;">
-                            <th style="padding:5px; border:1px solid #000000; width:130px;">구분</th>
+                        <tr style="background-color:#f1f5f9; font-weight:bold;">
+                            <th style="padding:8px 10px; border:1px solid #334155; width:140px; text-align:center;">구분</th>
                             {months_headers}
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="padding:5px; border:1px solid #000000; text-align:left; padding-left:10px;">Overdue Rate QC</td>
+                            <td style="padding:8px 10px; border:1px solid #334155; text-align:left; padding-left:12px; font-weight:bold;">Overdue Rate QC</td>
                             {qc_trend_cells}
                         </tr>
                         <tr>
-                            <td style="padding:5px; border:1px solid #000000; text-align:left; padding-left:10px;">Overdue Rate ARMGC</td>
+                            <td style="padding:8px 10px; border:1px solid #334155; text-align:left; padding-left:12px; font-weight:bold;">Overdue Rate ARMGC</td>
                             {armgc_trend_cells}
                         </tr>
                     </tbody>
                 </table>
 
-                <p style="font-weight:bold; margin-bottom:10px;">● QC, ARMGC - Overdue 현황</p>
-                <div style="width:100%; max-width:750px; margin-bottom:15px;">
-                    <img src="cid:qc_chart" style="width:100%; max-width:750px; height:auto; display:block; margin-bottom:15px;">
+                <p style="{font_style} font-weight:bold; margin-bottom:12px;">● QC, ARMGC - Overdue 현황</p>
+                <div style="width:100%; max-width:750px; margin-bottom:20px;">
+                    <img src="cid:qc_chart" style="width:100%; max-width:750px; height:auto; display:block; margin-bottom:18px;">
                     <img src="cid:armgc_chart" style="width:100%; max-width:750px; height:auto; display:block;">
                 </div>
 
-                <p style="margin:15px 0 20px 0;">- PMS 장비 배정 실적 : {today.month}월 PMS 장비 배정 ARMGC Target : {target_pms_count}대 / 실적 {actual_pms_count}대 ({pms_percent:.0f}%)</p>
+                <p style="{font_style} margin:18px 0 24px 0;">- PMS 장비 배정 실적 : {today.month}월 PMS 장비 배정 ARMGC Target : {target_pms_count}대 / 실적 {actual_pms_count}대 ({pms_percent:.0f}%)</p>
             </div>
 
             <!-- 5) 당월 PMS 배정 달력 -->
-            <div style="margin-left:20px; width:100%; max-width:750px; margin-bottom:20px;">
+            <div style="margin-left:20px; width:100%; max-width:750px; margin-bottom:24px;">
                 <img src="cid:cal_image" style="width:100%; max-width:750px; height:auto; display:block;">
             </div>
 
             <br>
-            <p>감사합니다.</p>
+            <p style="{font_style}">감사합니다.</p>
         </body>
         </html>
         """
