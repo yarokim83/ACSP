@@ -129,14 +129,19 @@ class ReportGenerator:
         return out_path
 
     @staticmethod
-    def build_html_body(stats):
-        """Constructs HTML body with 11pt font size, compact tables, and non-stretching layout."""
+    def build_html_body(stats, custom_title=None):
+        """Constructs HTML body with 10pt font size inside tables, ultra-compact cell height, and customizable title."""
         
         today = datetime.now()
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
         weekday_str = weekdays_korean[today.weekday()]
         date_str_short = f"{today.month}/{today.day}, {weekday_str}"
         
+        if custom_title and custom_title.strip():
+            header_title_line = f"{custom_title.strip()} 및 정비실적을 송부 드립니다."
+        else:
+            header_title_line = f"기술팀 일일 정비계획({date_str_short}) 및 정비실적을 송부 드립니다."
+
         # Working days calculation for target
         _, last_day = calendar.monthrange(today.year, today.month)
         working_days = sum(1 for d in range(1, last_day + 1) if datetime(today.year, today.month, d).weekday() < 5)
@@ -144,38 +149,38 @@ class ReportGenerator:
         actual_pms_count = sum(len(cranes) for cranes in stats['calendar_assignments'].values())
         pms_percent = (actual_pms_count / target_pms_count * 100) if target_pms_count > 0 else 0
         
-        # Base font style set to 11pt as requested by user
         font_style = "font-family:'Malgun Gothic', '맑은 고딕', Arial, sans-serif; font-size:11pt; color:#111111; line-height:1.6;"
-        cell_font = "font-family:'Malgun Gothic', '맑은 고딕', sans-serif; font-size:11pt;"
+        # Set table cell font size strictly to 10pt with ultra-compact line height
+        cell_font = "font-family:'Malgun Gothic', '맑은 고딕', sans-serif; font-size:10pt; line-height:1.2;"
 
-        # RM Table Rows HTML (Compact width 650px, soft pink background for active RM items)
+        # RM Table Rows HTML (Compact width 650px, soft pink background for active RM items, padding 3px 6px)
         rm_rows_html = ""
         if stats['rm_list']:
             for rm in stats['rm_list']:
                 rm_rows_html += f"""
                 <tr style="text-align:center; background-color:#fde8e8; color:#9b1c1c;">
-                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font}">{rm['failure_date']}</td>
-                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} text-align:left; font-weight:bold;">{rm['details']}</td>
-                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font}">{rm['rm_request_date']}</td>
-                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} font-weight:bold;">{rm['elapsed_days']}</td>
-                    <td style="padding:5px 8px; border:1px solid #f87171; {cell_font} text-align:left;">{rm['remark']}</td>
+                    <td style="padding:3px 6px; border:1px solid #f87171; {cell_font}">{rm['failure_date']}</td>
+                    <td style="padding:3px 6px; border:1px solid #f87171; {cell_font} text-align:left; font-weight:bold;">{rm['details']}</td>
+                    <td style="padding:3px 6px; border:1px solid #f87171; {cell_font}">{rm['rm_request_date']}</td>
+                    <td style="padding:3px 6px; border:1px solid #f87171; {cell_font} font-weight:bold;">{rm['elapsed_days']}</td>
+                    <td style="padding:3px 6px; border:1px solid #f87171; {cell_font} text-align:left;">{rm['remark']}</td>
                 </tr>
                 """
         else:
             rm_rows_html = f"""
             <tr style="text-align:center; background-color:#ffffff;">
-                <td colspan="5" style="padding:8px; border:1px solid #cbd5e1; {cell_font} color:#64748b;">특이 RM 요청 List 없음</td>
+                <td colspan="5" style="padding:5px; border:1px solid #cbd5e1; {cell_font} color:#64748b;">특이 RM 요청 List 없음</td>
             </tr>
             """
 
-        # Overdue Rate History Table HTML (Compact vertical cell height padding: 4px 6px)
-        months_headers = "".join([f'<th style="padding:4px 6px; border:1px solid #334155; width:55px; {cell_font} background-color:#f1f5f9; color:#0f172a; text-align:center;">{m} 월</th>' for m in range(1, today.month + 1)])
+        # Overdue Rate History Table HTML (Ultra-compact vertical cell height padding: 2px 4px, font-size: 10pt)
+        months_headers = "".join([f'<th style="padding:2px 4px; border:1px solid #334155; width:50px; {cell_font} background-color:#f1f5f9; color:#0f172a; text-align:center;">{m} 월</th>' for m in range(1, today.month + 1)])
         
         qc_rate_str = f"{round(stats['qc_rate'])}%"
         armgc_rate_str = f"{round(stats['armgc_rate'])}%"
         
-        qc_trend_cells = "".join([f'<td style="padding:4px 6px; border:1px solid #334155; {cell_font} text-align:center;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
-        armgc_trend_cells = "".join([f'<td style="padding:4px 6px; border:1px solid #334155; {cell_font} text-align:center;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
+        qc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{qc_rate_str if m == today.month else "17%"}</td>' for m in range(1, today.month + 1)])
+        armgc_trend_cells = "".join([f'<td style="padding:2px 4px; border:1px solid #334155; {cell_font} text-align:center;">{armgc_rate_str if m == today.month else "26%"}</td>' for m in range(1, today.month + 1)])
 
         html = f"""
         <html>
@@ -183,19 +188,19 @@ class ReportGenerator:
             
             <p style="{font_style} margin-bottom:14px;">수신자 제위</p>
             
-            <p style="{font_style} margin-bottom:20px;">기술팀 "일일작업계획({date_str_short})" 및 정비실적을 송부 드립니다.</p>
+            <p style="{font_style} margin-bottom:20px;">{header_title_line}</p>
             
-            <!-- 1) RM 요청 List (Width fixed to 650px to prevent excessive horizontal stretching) -->
+            <!-- 1) RM 요청 List (Width fixed to 650px, table text size 10pt, padding 3px 6px) -->
             <p style="{font_style} font-weight:bold; margin-top:18px; margin-bottom:8px;">1) RM 요청 List</p>
             <div style="width:650px; margin-bottom:20px;">
                 <table style="width:650px; border-collapse:collapse; {cell_font}">
                     <thead>
                         <tr style="background-color:#94a3b8; color:#0f172a; font-weight:bold; text-align:center;">
-                            <th style="padding:6px; border:1px solid #64748b; width:110px; {cell_font}">고장 발생(확인)일</th>
-                            <th style="padding:6px; border:1px solid #64748b; width:210px; {cell_font}">고장내용</th>
-                            <th style="padding:6px; border:1px solid #64748b; width:95px; {cell_font}">RM 요청일</th>
-                            <th style="padding:6px; border:1px solid #64748b; width:55px; {cell_font}">경과일</th>
-                            <th style="padding:6px; border:1px solid #64748b; width:180px; {cell_font}">Remark</th>
+                            <th style="padding:4px 6px; border:1px solid #64748b; width:125px; {cell_font}">고장 발생(확인)일</th>
+                            <th style="padding:4px 6px; border:1px solid #64748b; width:210px; {cell_font}">고장내용</th>
+                            <th style="padding:4px 6px; border:1px solid #64748b; width:90px; {cell_font}">RM 요청일</th>
+                            <th style="padding:4px 6px; border:1px solid #64748b; width:50px; {cell_font}">경과일</th>
+                            <th style="padding:4px 6px; border:1px solid #64748b; width:175px; {cell_font}">Remark</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -218,21 +223,21 @@ class ReportGenerator:
             
             <div style="margin-left:20px; width:650px;">
                 <p style="{font_style} font-weight:bold; margin-bottom:6px;">● 월별 Overdue Rate</p>
-                <!-- Compact Overdue Rate table with small vertical row padding (padding: 4px 6px) -->
+                <!-- Ultra-compact Overdue Rate table with small vertical row padding (padding: 2px 4px, font-size: 10pt) -->
                 <table style="border-collapse:collapse; {cell_font} text-align:center; margin-bottom:20px; width:650px;">
                     <thead>
                         <tr style="background-color:#f1f5f9; font-weight:bold;">
-                            <th style="padding:4px 6px; border:1px solid #334155; width:150px; text-align:center; {cell_font}">구분</th>
+                            <th style="padding:2px 4px; border:1px solid #334155; width:150px; text-align:center; {cell_font}">구분</th>
                             {months_headers}
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td style="padding:4px 6px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate QC</td>
+                            <td style="padding:2px 4px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate QC</td>
                             {qc_trend_cells}
                         </tr>
                         <tr>
-                            <td style="padding:4px 6px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate ARMGC</td>
+                            <td style="padding:2px 4px; border:1px solid #334155; text-align:left; padding-left:10px; font-weight:bold; {cell_font}">Overdue Rate ARMGC</td>
                             {armgc_trend_cells}
                         </tr>
                     </tbody>

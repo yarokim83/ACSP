@@ -82,7 +82,7 @@ class DailyReportWindow(tk.Toplevel):
         today = datetime.now()
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
         date_str_short = f"{today.month}/{today.day}, {weekdays_korean[today.weekday()]}"
-        default_subject = f'기술팀 "일일작업계획({date_str_short})" 및 정비실적'
+        default_subject = f"기술팀 일일 정비계획({date_str_short})"
         self.subject_var = tk.StringVar(value=default_subject)
         self.subject_entry = ttk.Entry(sub_frame, textvariable=self.subject_var, font=FONTS['body'])
         self.subject_entry.pack(side='left', fill='x', expand=True)
@@ -282,8 +282,8 @@ class DailyReportWindow(tk.Toplevel):
                 "monthly_pms_calendar.png"
             )
             
-            # 4. Build HTML Body
-            html_body = ReportGenerator.build_html_body(self.stats)
+            # 4. Build HTML Body with custom title
+            html_body = ReportGenerator.build_html_body(self.stats, custom_title=self.subject_var.get())
             
             # 5. CID Image Mapping
             image_map = {
