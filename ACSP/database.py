@@ -84,6 +84,9 @@ def init_database():
         # Populate initial equipment list if missing
         _populate_initial_equipment(cursor)
         
+        # Populate initial email recipients if missing
+        _populate_initial_recipients(cursor)
+        
         conn.commit()
 
 def _populate_initial_equipment(cursor):
@@ -124,6 +127,41 @@ def _populate_initial_equipment(cursor):
             ''', (eq_id, today, next_due))
         elif existing_data[eq_id] != 'QC':
              cursor.execute("UPDATE equipment SET type = 'QC' WHERE id = ?", (eq_id,))
+
+def _populate_initial_recipients(cursor):
+    cursor.execute('SELECT COUNT(*) FROM email_recipients')
+    if cursor.fetchone()[0] == 0:
+        default_recipients = [
+            ('jihwan.park', 'jihwan.park@lotte.net', 'TO'),
+            ('wisu.kim', 'wisu.kim@lotte.net', 'TO'),
+            ('sungdaekim', 'sungdaekim@lotte.net', 'TO'),
+            ('jaekyoung.kim', 'jaekyoung.kim@lotte.net', 'TO'),
+            ('mc_park', 'mc_park@lotte.net', 'TO'),
+            ('byoungjin.jeon', 'byoungjin.jeon@lotte.net', 'TO'),
+            ('kim.dohyeong', 'kim.dohyeong@lotte.net', 'TO'),
+            ('kimosung', 'kimosung@lotte.net', 'TO'),
+            ('ds_kim', 'ds_kim@lotte.net', 'TO'),
+            ('bksong', 'bksong@lotte.net', 'TO'),
+            ('jinwon.seo', 'jinwon.seo@lotte.net', 'TO'),
+            ('gido.lee', 'gido.lee@lotte.net', 'TO'),
+            ('kdhway', 'kdhway@naver.com', 'TO'),
+            ('MINJEEKIM', 'MINJEEKIM@lotte.net', 'TO'),
+            ('이정상 / Lee Jungsang', 'jungsang.lee@hpnt.co.kr', 'TO'),
+            ('명길태(HPNT Tec)', 'lgl301071@lotte.net', 'TO'),
+            ('bonggeun.kim', 'bonggeun.kim@lotte.net', 'TO'),
+            ('junho.jang', 'junho.jang@lotte.net', 'TO'),
+            ('kim_hyewon', 'kim_hyewon@lotte.net', 'TO'),
+            ('chju', 'chju@lotte.net', 'TO'),
+            ('seungwan.cho', 'seungwan.cho@lotte.net', 'TO'),
+            ('seokw.lee', 'seokw.lee@lotte.net', 'TO'),
+            ('minseo.park', 'minseo.park@lotte.net', 'TO'),
+            ('Ondock, HPNT', 'ondock@hpnt.co.kr', 'TO'),
+            ('youngtakko', 'youngtakko@lotte.net', 'TO'),
+        ]
+        cursor.executemany('''
+            INSERT INTO email_recipients (name, email, type)
+            VALUES (?, ?, ?)
+        ''', default_recipients)
 
 def calculate_equipment_status(conn, equipment_id):
     """
