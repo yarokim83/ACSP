@@ -79,8 +79,10 @@ class DailyReportWindow(tk.Toplevel):
         sub_frame.pack(fill='x', pady=(0, 10))
         ttk.Label(sub_frame, text="메일 제목:", style='Card.TLabel', width=10).pack(side='left')
         
-        today_str = datetime.now().strftime('%m.%d')
-        default_subject = f"[기술팀] 일간 예방정비계획({today_str}) 및 정비실적 보고"
+        today = datetime.now()
+        weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
+        date_str_short = f"{today.month}/{today.day}, {weekdays_korean[today.weekday()]}"
+        default_subject = f'기술팀 "일일작업계획({date_str_short})" 및 정비실적'
         self.subject_var = tk.StringVar(value=default_subject)
         self.subject_entry = ttk.Entry(sub_frame, textvariable=self.subject_var, font=FONTS['body'])
         self.subject_entry.pack(side='left', fill='x', expand=True)
