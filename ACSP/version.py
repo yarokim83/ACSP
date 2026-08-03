@@ -13,8 +13,9 @@
 #   v1.4.2  - ARMGC chart moved below QC chart (vertical stacking)
 #   v1.4.3  - Added version rule & versioning system
 #   v1.4.4  - Fix: win32com lazy import (Daily Report 버튼 무반응 근본 원인 해결)
+#   v1.4.5  - Fix: pywin32 & matplotlib installed to Python 3.13, fully bundled in EXE
 
-__version__ = "1.4.4"
+__version__ = "1.4.5"
 __app_name__ = "ACSP"
 __full_name__ = "Ai Crane Scheduler Program"
 
