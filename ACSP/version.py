@@ -1,0 +1,18 @@
+# ACSP Version Management
+# -------------------------
+# VERSION HISTORY:
+#   v1.0.0  - Initial release: Equipment PMS scheduler, RM list, Overdue graph
+#   v1.1.0  - RM list delete bug fix (sqlite_master-based init check)
+#   v1.2.0  - Daily Report email automation (Option A / Outlook win32com)
+#   v1.2.1  - Recipient address book UI (TO/CC management tab)
+#   v1.3.0  - Email layout: compact table, 10pt font, customizable title
+#   v1.3.1  - Calendar image overlap fix (title vs day header gap)
+#   v1.3.2  - Monthly Overdue Rate: last-day-of-month basis for past months
+#   v1.4.0  - Legibility improvements: navy titles, red % highlights, current month column highlight
+#   v1.4.1  - Ultra-compact table row height (18px, line-height 1.0)
+#   v1.4.2  - ARMGC chart moved below QC chart (vertical stacking)
+#   v1.4.3  - Added version rule & versioning system
+
+__version__ = "1.4.3"
+__app_name__ = "ACSP"
+__full_name__ = "Ai Crane Scheduler Program"

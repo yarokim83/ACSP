@@ -5,11 +5,12 @@ from ..database import get_connection
 from .calendar import MaintenanceCalendar
 from .graph import OverdueGraph
 from .styles import apply_styles, COLORS, FONTS
+from ..version import __version__, __app_name__, __full_name__
 
 class ACSPApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("ACSP - Ai Crane Scheduler Program")
+        self.root.title(f"{__app_name__} v{__version__} - {__full_name__}")
         self.root.geometry("1200x800")
         
         self.style = apply_styles(root)
@@ -40,8 +41,9 @@ class ACSPApp:
         # Logo / Title
         title_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
         title_frame.pack(fill='x', pady=(30, 40), padx=20)
-        ttk.Label(title_frame, text="ACSP", style='SidebarTitle.TLabel').pack(anchor='w')
+        ttk.Label(title_frame, text=__app_name__, style='SidebarTitle.TLabel').pack(anchor='w')
         ttk.Label(title_frame, text="Crane Scheduler", style='Sidebar.TLabel').pack(anchor='w')
+        ttk.Label(title_frame, text=f"v{__version__}", style='Sidebar.TLabel').pack(anchor='w')
         
         # Stats Widget
         self.stats_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
