@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import datetime
+from datetime import datetime, timedelta
 from ..database import (
     get_email_recipients, 
     add_email_recipient, 
@@ -80,9 +80,9 @@ class DailyReportWindow(tk.Toplevel):
         sub_frame.pack(fill='x', pady=(0, 10))
         ttk.Label(sub_frame, text="메일 제목:", style='Card.TLabel', width=10).pack(side='left')
         
-        today = datetime.now()
+        tomorrow = datetime.now() + timedelta(days=1)
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
-        date_str_short = f"{today.month}/{today.day}, {weekdays_korean[today.weekday()]}"
+        date_str_short = f"{tomorrow.month}/{tomorrow.day}, {weekdays_korean[tomorrow.weekday()]}"
         default_subject = f"기술팀 일일 정비계획({date_str_short})"
         self.subject_var = tk.StringVar(value=default_subject)
         self.subject_entry = ttk.Entry(sub_frame, textvariable=self.subject_var, font=FONTS['body'])

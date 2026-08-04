@@ -1,7 +1,7 @@
 import os
 import tempfile
 import calendar
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib
 matplotlib.use('Agg') # Non-interactive backend
 import matplotlib.pyplot as plt
@@ -166,9 +166,10 @@ class ReportGenerator:
         """Constructs HTML body with 10pt font size inside tables, ultra-compact cell height, and customizable title."""
         
         today = datetime.now()
+        tomorrow = today + timedelta(days=1)
         weekdays_korean = ['월', '화', '수', '목', '금', '토', '일']
-        weekday_str = weekdays_korean[today.weekday()]
-        date_str_short = f"{today.month}/{today.day}, {weekday_str}"
+        weekday_str = weekdays_korean[tomorrow.weekday()]
+        date_str_short = f"{tomorrow.month}/{tomorrow.day}, {weekday_str}"
         
         if custom_title and custom_title.strip():
             header_title_line = f"{custom_title.strip()} 및 정비실적을 송부 드립니다."

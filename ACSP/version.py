@@ -22,8 +22,9 @@
 #   v1.5.2  - Feature: Add recipient info editing & TO/CC toggle buttons in address book UI
 #   v1.5.3  - Fix: Email calendar image weekday alignment fix (set firstweekday=Sunday)
 #   v1.5.4  - Fix: Email calendar image exact match to program UI calendar (QC Red, ARMGC Blue, Today circle)
+#   v1.5.5  - Feature: Display tomorrow's date & weekday in default email subject & body title
 
-__version__ = "1.5.4"
+__version__ = "1.5.5"
 __app_name__ = "ACSP"
 __full_name__ = "Ai Crane Scheduler Program"
 
