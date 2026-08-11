@@ -1,9 +1,31 @@
+import os
+import sys
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, timedelta
+from PIL import Image, ImageTk
 from ..database import get_connection
 from .styles import apply_styles, COLORS, FONTS
 from ..version import __version__, __app_name__, __full_name__
+
+def get_asset_path(filename):
+    if getattr(sys, 'frozen', False):
+        base_dir = Path(sys.executable).parent
+        if hasattr(sys, '_MEIPASS'):
+            meipass_path = Path(sys._MEIPASS) / filename
+            if meipass_path.exists():
+                return str(meipass_path)
+    else:
+        base_dir = Path(__file__).parent.parent.parent
+        
+    path = base_dir / filename
+    if path.exists():
+        return str(path)
+    dist_path = base_dir / 'dist' / filename
+    if dist_path.exists():
+        return str(dist_path)
+    return str(path)
 
 class ACSPApp:
     def __init__(self, root):
@@ -12,6 +34,19 @@ class ACSPApp:
         self.root.geometry("1200x800")
         
         self.style = apply_styles(root)
+        
+        # Set Window Icon
+        try:
+            icon_path = get_asset_path('icon.ico')
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+            png_path = get_asset_path('CraneOn.png')
+            if os.path.exists(png_path):
+                icon_img = Image.open(png_path).resize((32, 32), Image.Resampling.LANCZOS)
+                self.window_icon = ImageTk.PhotoImage(icon_img)
+                self.root.iconphoto(True, self.window_icon)
+        except Exception:
+            pass
         
         # Main Layout Container
         self.main_container = ttk.Frame(self.root, style='Main.TFrame')
@@ -36,34 +71,45 @@ class ACSPApp:
         sidebar.pack(side='left', fill='y')
         sidebar.pack_propagate(False) # Force width
         
-        # Logo / Title
+        # Logo / Title Frame
         title_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-        title_frame.pack(fill='x', pady=(30, 40), padx=20)
-        ttk.Label(title_frame, text=__app_name__, style='SidebarTitle.TLabel').pack(anchor='w')
-        ttk.Label(title_frame, text="Crane Scheduler", style='Sidebar.TLabel').pack(anchor='w')
-        ttk.Label(title_frame, text=f"v{__version__}", style='Sidebar.TLabel').pack(anchor='w')
+        title_frame.pack(fill='x', pady=(25, 30), padx=20)
+        
+        try:
+            png_path = get_asset_path('CraneOn.png')
+            if os.path.exists(png_path):
+                logo_img_pil = Image.open(png_path).resize((46, 46), Image.Resampling.LANCZOS)
+                self.sidebar_logo = ImageTk.PhotoImage(logo_img_pil)
+                ttk.Label(title_frame, image=self.sidebar_logo, style='Sidebar.TLabel').pack(side='left', padx=(0, 10))
+        except Exception:
+            pass
+
+        text_subframe = ttk.Frame(title_frame, style='Sidebar.TFrame')
+        text_subframe.pack(side='left', fill='x')
+        ttk.Label(text_subframe, text=__app_name__, style='SidebarTitle.TLabel').pack(anchor='w')
+        ttk.Label(text_subframe, text="Crane Scheduler", style='Sidebar.TLabel').pack(anchor='w')
+        ttk.Label(text_subframe, text=f"v{__version__}", style='Sidebar.TLabel').pack(anchor='w')
         
         # Stats Widget
         self.stats_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-        self.stats_frame.pack(fill='x', padx=20, pady=20)
+        self.stats_frame.pack(fill='x', padx=20, pady=15)
         
         self._create_stat_item(self.stats_frame, "Total Equipment", "total_val")
         self._create_stat_item(self.stats_frame, "Overdue", "overdue_val")
         self._create_stat_item(self.stats_frame, "Warning", "warning_val")
 
         # Navigation Buttons (Spacer)
-        ttk.Frame(sidebar, style='Sidebar.TFrame', height=40).pack()
+        ttk.Frame(sidebar, style='Sidebar.TFrame', height=30).pack()
         
         ttk.Button(sidebar, text=" 📅  Calendar View", style='Sidebar.TButton', command=self.show_calendar).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 📊  Overdue Graph", style='Sidebar.TButton', command=self.show_graph).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 🔧  RM List", style='Sidebar.TButton', command=self.show_rm_list).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 📧  Daily Report", style='Sidebar.TButton', command=self.show_daily_report).pack(fill='x', padx=10, pady=5)
-
         
         # Bottom info
         bottom_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
         bottom_frame.pack(side='bottom', fill='x', pady=20, padx=20)
-        ttk.Label(bottom_frame, text="v1.0.1", style='Sidebar.TLabel', font=FONTS['small']).pack(anchor='w')
+        ttk.Label(bottom_frame, text=f"v{__version__}", style='Sidebar.TLabel', font=FONTS['small']).pack(anchor='w')
 
     def _create_stat_item(self, parent, label, var_name):
         f = ttk.Frame(parent, style='Sidebar.TFrame')

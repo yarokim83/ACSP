@@ -23,8 +23,9 @@
 #   v1.5.3  - Fix: Email calendar image weekday alignment fix (set firstweekday=Sunday)
 #   v1.5.4  - Fix: Email calendar image exact match to program UI calendar (QC Red, ARMGC Blue, Today circle)
 #   v1.5.5  - Feature: Display tomorrow's date & weekday in default email subject & body title
+#   v2.0.0  - Major: Rebranded application name to CRANEON with CraneOn logo integration
 
-__version__ = "1.5.5"
-__app_name__ = "ACSP"
-__full_name__ = "Ai Crane Scheduler Program"
+__version__ = "2.0.0"
+__app_name__ = "CRANEON"
+__full_name__ = "CraneOn Schedule & Management"
 
