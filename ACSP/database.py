@@ -413,6 +413,8 @@ def get_daily_report_stats():
                 history_qc[m] = round((q_overdue / len(qc_ids) * 100) if qc_ids else 0)
                 history_armgc[m] = round((a_overdue / len(armgc_ids) * 100) if armgc_ids else 0)
 
+    armgc_pms_count = sum(len(day_data.get('ARMGC', [])) for day_data in calendar_assignments.values() if isinstance(day_data, dict))
+
     return {
         'today_str': today.strftime('%Y-%m-%d'),
         'today_korean': today.strftime('%Y년 %m월 %d일'),
@@ -427,6 +429,7 @@ def get_daily_report_stats():
         'armgc_total': armgc_total,
         'armgc_overdue': armgc_overdue,
         'armgc_rate': armgc_rate,
+        'armgc_pms_count': armgc_pms_count,
         'calendar_assignments': calendar_assignments,
         'history_qc': history_qc,
         'history_armgc': history_armgc

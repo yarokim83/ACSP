@@ -176,11 +176,11 @@ class ReportGenerator:
         else:
             header_title_line = f"기술팀 일일 정비계획({date_str_short}) 및 정비실적을 송부 드립니다."
 
-        # Working days calculation for target
+        # Working days calculation for target (1대 / Working day)
         _, last_day = calendar.monthrange(today.year, today.month)
         working_days = sum(1 for d in range(1, last_day + 1) if datetime(today.year, today.month, d).weekday() < 5)
         target_pms_count = working_days # 1대 / Working day
-        actual_pms_count = sum(len(cranes) for cranes in stats['calendar_assignments'].values())
+        actual_pms_count = stats.get('armgc_pms_count', 0)
         pms_percent = (actual_pms_count / target_pms_count * 100) if target_pms_count > 0 else 0
         
         font_style = "font-family:'Malgun Gothic', '맑은 고딕', Arial, sans-serif; font-size:11pt; color:#111111; line-height:1.6;"

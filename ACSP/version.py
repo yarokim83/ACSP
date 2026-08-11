@@ -24,8 +24,9 @@
 #   v1.5.4  - Fix: Email calendar image exact match to program UI calendar (QC Red, ARMGC Blue, Today circle)
 #   v1.5.5  - Feature: Display tomorrow's date & weekday in default email subject & body title
 #   v2.0.0  - Major: Rebranded application name to CRANEON with CraneOn logo integration
+#   v2.0.1  - Fix: Section 4 ARMGC PMS actual count calculation in daily report email body
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __app_name__ = "CRANEON"
 __full_name__ = "CraneOn Schedule & Management"
 
