@@ -65,6 +65,10 @@ class ACSPApp:
         self.current_type_filter = 'ARMGC' # Default
         self.current_status_filter = 'all'
         self.load_data()
+        from ..pms_server import PMSService
+        self.pms_service = PMSService()
+        self.root.protocol('WM_DELETE_WINDOW', self.close)
+        self.refresh_timer = self.root.after(15000, self.refresh_dashboard)
 
     def create_sidebar(self):
         sidebar = ttk.Frame(self.main_container, style='Sidebar.TFrame', width=250)
@@ -73,7 +77,7 @@ class ACSPApp:
         
         # Logo / Title Frame
         title_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-        title_frame.pack(fill='x', pady=(25, 30), padx=20)
+        title_frame.pack(fill='x', pady=(16, 14), padx=20)
         
         try:
             png_path = get_asset_path('CraneOn.png')
@@ -92,14 +96,17 @@ class ACSPApp:
         
         # Stats Widget
         self.stats_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-        self.stats_frame.pack(fill='x', padx=20, pady=15)
+        self.stats_frame.pack(fill='x', padx=20, pady=8)
         
         self._create_stat_item(self.stats_frame, "Total Equipment", "total_val")
         self._create_stat_item(self.stats_frame, "Overdue", "overdue_val")
         self._create_stat_item(self.stats_frame, "Warning", "warning_val")
 
         # Navigation Buttons (Spacer)
-        ttk.Frame(sidebar, style='Sidebar.TFrame', height=30).pack()
+        self.nav_spacer = ttk.Frame(sidebar, style='Sidebar.TFrame', height=8)
+        self.nav_spacer.pack()
+
+        ttk.Button(sidebar, text=' 작업 완료 현황', style='Sidebar.TButton', command=self.show_work_dashboard).pack(fill='x', padx=10, pady=2)
         
         ttk.Button(sidebar, text=" 📅  Calendar View", style='Sidebar.TButton', command=self.show_calendar).pack(fill='x', padx=10, pady=5)
         ttk.Button(sidebar, text=" 📊  Overdue Graph", style='Sidebar.TButton', command=self.show_graph).pack(fill='x', padx=10, pady=5)
@@ -108,20 +115,24 @@ class ACSPApp:
         
         # Bottom info
         bottom_frame = ttk.Frame(sidebar, style='Sidebar.TFrame')
-        bottom_frame.pack(side='bottom', fill='x', pady=20, padx=20)
+        bottom_frame.pack(side='bottom', fill='x', pady=10, padx=20)
         ttk.Label(bottom_frame, text=f"v{__version__}", style='Sidebar.TLabel', font=FONTS['small']).pack(anchor='w')
 
     def _create_stat_item(self, parent, label, var_name):
         f = ttk.Frame(parent, style='Sidebar.TFrame')
-        f.pack(fill='x', pady=10)
+        f.pack(fill='x', pady=6)
         ttk.Label(f, text=label, style='SidebarStat.TLabel').pack(anchor='w')
         lbl = ttk.Label(f, text="0", style='SidebarStatValue.TLabel')
         lbl.pack(anchor='w')
         setattr(self, var_name, lbl)
 
     def create_dashboard(self):
+        self.equipment_panel = ttk.Frame(self.content_area, style='Main.TFrame')
+        self.equipment_panel.pack(fill='both', expand=True)
+        self.work_dashboard = None
+        self.work_window = None
         # 1. Input / Action Card
-        action_card = ttk.Frame(self.content_area, style='Card.TFrame', padding=20)
+        action_card = ttk.Frame(self.equipment_panel, style='Card.TFrame', padding=20)
         action_card.pack(fill='x', pady=(0, 20))
         
         ttk.Label(action_card, text="Record Maintenance", style='CardHeader.TLabel').pack(anchor='w', pady=(0, 15))
@@ -150,7 +161,7 @@ class ACSPApp:
         ttk.Button(btn_frame, text="COMPLETE MAINTENANCE", style='Action.TButton', command=self.complete_maintenance).pack(pady=(2,0))
 
         # 2. Main List Card
-        list_card = ttk.Frame(self.content_area, style='Card.TFrame', padding=20)
+        list_card = ttk.Frame(self.equipment_panel, style='Card.TFrame', padding=20)
         list_card.pack(fill='both', expand=True)
 
         # List Header & Filters
@@ -210,6 +221,7 @@ class ACSPApp:
         self.tree.tag_configure('overdue', foreground=COLORS['danger'])
         self.tree.tag_configure('warning', foreground=COLORS['warning'])
         self.tree.tag_configure('good', foreground=COLORS['success'])
+        self.tree.tag_configure('unknown', foreground='#718096')
 
     # -------------------------------------------------------------------------
     # Copy Support
@@ -306,20 +318,27 @@ class ACSPApp:
         else:
             self.sort_reverse = False
         self.sort_column = column
-        
-        items = [(self.tree.set(item, column), item) for item in self.tree.get_children('')]
+        self.apply_treeview_sort()
+
+    def apply_treeview_sort(self):
+        """Reapply the chosen order without toggling the header's direction."""
+        if self.sort_column is None:
+            return
+        items = [(self.tree.set(item, self.sort_column), item) for item in self.tree.get_children('')]
         
         def sort_key(val):
             try:
                 # Handle "X days" format
                 if isinstance(val, str) and ' days' in val:
-                    return int(val.replace(' days', ''))
+                    return (0, int(val.replace(' days', '')))
                 # Handle pure numbers
-                return int(val)
+                return (0, int(val))
             except ValueError:
                 # Fallback to string
-                return val
+                return (1, str(val))
         
+        # Equal values keep a consistent equipment order even after rows are rebuilt.
+        items.sort(key=lambda x: sort_key(self.tree.set(x[1], 'ID')))
         items.sort(key=lambda x: sort_key(x[0]), reverse=self.sort_reverse)
             
         for index, (_, item) in enumerate(items):
@@ -347,6 +366,25 @@ class ACSPApp:
         else:
             self.btn_armgc.state(['!pressed'])
             self.btn_qc.state(['pressed'])
+
+        self.tree.heading('ID', text='ID')
+        self.tree.column('ID', width=100)
+        if self.current_type_filter == 'QC':
+            from ..pms import task_status
+            jobs = task_status()
+            for job in jobs:
+                state = {'정상': 'good', '지연': 'overdue', '임박': 'warning', '미등록': 'unknown'}[job['status']]
+                if self.current_status_filter != 'all' and state != self.current_status_filter:
+                    continue
+                self.tree.insert('', 'end', values=(job['equipment_id'],
+                    job['maintenance_date'] or '미등록', job['status'],
+                    f"{job['days_passed']} days" if job['days_passed'] is not None else '—',
+                    f"{job['remaining']} days" if job['remaining'] is not None else '—'), tags=(state,))
+            self.total_val.config(text=f"{len(jobs)}대")
+            self.overdue_val.config(text=f"{sum(j['status']=='지연' for j in jobs)}대")
+            self.warning_val.config(text=f"{sum(j['status']=='임박' for j in jobs)} / 미등록 {sum(j['status']=='미등록' for j in jobs)}")
+            self.apply_treeview_sort()
+            return
             
         total_cnt = 0
         overdue_cnt = 0
@@ -368,6 +406,7 @@ class ACSPApp:
             # Type Filter
             if eq_type != self.current_type_filter:
                 continue
+            total_cnt += 1
                 
             try:
                 last_maintenance = datetime.strptime(last_date, '%Y-%m-%d')
@@ -407,6 +446,7 @@ class ACSPApp:
         self.total_val.config(text=str(total_cnt))
         self.overdue_val.config(text=str(overdue_cnt))
         self.warning_val.config(text=str(warning_cnt))
+        self.apply_treeview_sort()
 
     def complete_maintenance(self):
         selected_item = self.tree.selection()
@@ -416,6 +456,12 @@ class ACSPApp:
             
         item = self.tree.item(selected_item[0])
         equipment_id = str(item['values'][0])
+
+        if self.current_type_filter == 'QC':
+            from .pms import PMSRecordDialog
+            PMSRecordDialog(self.root, equipment_id=int(equipment_id),
+                            initial_date=self.date_var.get(), on_saved=self.load_data)
+            return
         
         try:
             selected_date = datetime.strptime(self.date_var.get(), '%Y-%m-%d')
@@ -450,6 +496,58 @@ class ACSPApp:
         cal_win = MaintenanceCalendar(self.root)
         cal_win.transient(self.root)
         cal_win.grab_set()
+
+    def show_pms(self, tab='status'):
+        from .pms import PMSWindow
+        PMSWindow(self.root, tab=tab, on_saved=self.load_data)
+
+    def show_equipment_dashboard(self):
+        self.stats_frame.pack(fill='x', padx=20, pady=8, before=self.nav_spacer)
+        self.equipment_panel.pack(fill='both', expand=True)
+        self.load_data()
+
+    def show_work_dashboard(self):
+        from .work_dashboard import WorkDashboard
+        if self.work_window is not None and self.work_window.winfo_exists():
+            self.work_dashboard.refresh()
+            self.work_window.deiconify()
+            self.work_window.lift()
+            return
+        self.work_window = tk.Toplevel(self.root)
+        self.work_window.title(f'작업 완료 현황 — {__app_name__} v{__version__}')
+        self.work_window.geometry('1000x800')
+        self.work_window.minsize(900,800)
+        self.work_window.configure(bg=COLORS['bg'])
+        self.work_window.transient(self.root)
+        self.work_window.protocol('WM_DELETE_WINDOW',self.close_work_dashboard)
+        self.work_dashboard = WorkDashboard(self.work_window)
+        self.work_dashboard.pack(fill='both',expand=True,padx=20,pady=20)
+
+    def close_work_dashboard(self):
+        if self.work_window is not None:
+            self.work_window.destroy()
+        self.work_window = None
+        self.work_dashboard = None
+
+    def show_pms_network(self):
+        from .pms_network import PMSNetworkWindow
+        PMSNetworkWindow(self.root, self.pms_service)
+
+    def refresh_dashboard(self):
+        try:
+            selected = [self.tree.item(key)['values'][0] for key in self.tree.selection()]
+            self.load_data()
+            for key in self.tree.get_children():
+                if self.tree.item(key)['values'][0] in selected:
+                    self.tree.selection_add(key)
+        finally:
+            self.refresh_timer = self.root.after(15000, self.refresh_dashboard)
+
+    def close(self):
+        self.root.after_cancel(self.refresh_timer)
+        self.pms_service.stop()
+        self.close_work_dashboard()
+        self.root.destroy()
 
     def show_graph(self):
         from .graph import OverdueGraph

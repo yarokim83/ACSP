@@ -19,7 +19,8 @@ class OverdueGraph(tk.Toplevel):
         self.header_frame = ttk.Frame(self.main_frame)
         self.header_frame.pack(fill='x', pady=(0, 10))
         
-        ttk.Label(self.header_frame, text="Overdue Analysis", font=FONTS['h2']).pack(side='left')
+        self.title_label = ttk.Label(self.header_frame, text="Overdue Analysis", font=FONTS['h2'])
+        self.title_label.pack(side='left')
         
         # Filter Buttons in Header
         filter_frame = ttk.Frame(self.header_frame)
@@ -93,18 +94,24 @@ class OverdueGraph(tk.Toplevel):
             rows = cursor.fetchall()
             
         today = datetime.now()
+        self.title_label.config(text='QC · 호기별 통합 PMS / * 시행일 미등록' if self.current_filter == 'QC' else 'Overdue Analysis')
         for row in rows:
             eq_id = row[0]
             last_date_str = row[1]
             eq_type = row[2] if len(row) > 2 else 'ARMGC'
             
             # Filter
-            if eq_type != self.current_filter:
+            if eq_type != self.current_filter or eq_type == 'QC':
                 continue
                 
             last_date = datetime.strptime(last_date_str, '%Y-%m-%d')
             days_passed = (today - last_date).days
             data.append((eq_id, days_passed))
+
+        if self.current_filter == 'QC':
+            from ..pms import unit_status
+            data = [(str(q['id']) + ('*' if q['unknown'] else ''),
+                     q['days_passed']) for q in unit_status()]
             
         if not data:
             self.canvas.create_text(width/2, height/2, text=f"No {self.current_filter} Data Available")

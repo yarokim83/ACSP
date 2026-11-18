@@ -135,7 +135,7 @@ class MaintenanceCalendar(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Maintenance History Calendar")
-        self.geometry("900x650") # Slightly taller for buttons
+        self.geometry("1100x700")
         
         # Toggle Buttons (Top of info frame or top of window?)
         # Let's put a header frame at top
@@ -161,7 +161,7 @@ class MaintenanceCalendar(tk.Toplevel):
         
         ttk.Label(info_frame, text="History", font=('Helvetica', 12, 'bold')).pack(pady=5)
         
-        columns = ('Type', 'Equipment ID', 'Date')
+        columns = ('Type', 'Equipment ID', 'Date', 'Task')
         self.tree = ttk.Treeview(info_frame, columns=columns, show='headings', height=15)
         self.tree.heading('Type', text='Type')
         self.tree.column('Type', width=60)
@@ -169,6 +169,9 @@ class MaintenanceCalendar(tk.Toplevel):
         self.tree.column('Equipment ID', width=60)
         self.tree.heading('Date', text='Date')
         self.tree.column('Date', width=90)
+        self.tree.heading('Task', text='작업')
+        self.tree.column('Task', width=100)
+        self.pms_records = {}
             
         scrollbar = ttk.Scrollbar(info_frame, orient='vertical', command=self.tree.yview)
         self.tree.configure(yscrollcommand=scrollbar.set)
@@ -185,19 +188,19 @@ class MaintenanceCalendar(tk.Toplevel):
         ttk.Button(btn_frame, text="Delete", command=self.delete_record).pack(side='left', padx=5, expand=True, fill='x')
 
     def load_maintenance_dates(self):
-        two_months_ago = datetime.now() - timedelta(days=60)
-        two_months_ago_str = two_months_ago.strftime('%Y-%m-%d')
+        start = f'{self.year}-{self.month:02d}-01'
+        end = f'{self.year}-{self.month:02d}-{calendar.monthrange(self.year, self.month)[1]:02d}'
         self.maintenance_equipment_map.clear()
         
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT m.maintenance_date, e.type, GROUP_CONCAT(e.id)
+                SELECT m.maintenance_date, e.type, GROUP_CONCAT(DISTINCT e.id)
                 FROM maintenance_history m
                 JOIN equipment e ON m.equipment_id = e.id
-                WHERE m.maintenance_date >= ?
+                WHERE m.maintenance_date >= ? AND m.maintenance_date <= ?
                 GROUP BY m.maintenance_date, e.type
-            ''', (two_months_ago_str,))
+            ''', (start, end))
             
             for date, eq_type, equipment_ids in cursor.fetchall():
                 if date not in self.maintenance_equipment_map:
@@ -209,7 +212,7 @@ class MaintenanceCalendar(tk.Toplevel):
                     # Map to the correct list
                     if eq_type in self.maintenance_equipment_map[date]:
                         self.maintenance_equipment_map[date][eq_type].extend(ids)
-                
+
         if hasattr(self, 'cal'):
             self.cal.equipment_map = self.maintenance_equipment_map
             self.cal.draw_calendar()
@@ -222,15 +225,21 @@ class MaintenanceCalendar(tk.Toplevel):
         with get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('''
-                SELECT e.type, m.equipment_id, m.maintenance_date
+                SELECT e.type, m.equipment_id, m.maintenance_date, m.id
                 FROM maintenance_history m
                 JOIN equipment e ON m.equipment_id = e.id
-                WHERE m.maintenance_date = ?
+                WHERE m.maintenance_date = ? AND e.type != 'QC'
                 ORDER BY e.type DESC, m.equipment_id
             ''', (date_str,))
             
             for row in cursor.fetchall():
-                self.tree.insert('', 'end', values=row)
+                self.tree.insert('', 'end', iid=f'legacy-{row[3]}', values=(*row[:3], '—'))
+        from ..pms import list_records
+        self.pms_records = {}
+        for record in list_records(start=date_str, end=date_str, include_legacy=False):
+            key = f"pms-{record['id']}"
+            self.pms_records[key] = record
+            self.tree.insert('', 'end', iid=key, values=('QC', record['equipment_id'], record['maintenance_date'], record['task']))
 
     def prev_month(self):
         if self.month == 1:
@@ -271,9 +280,16 @@ class MaintenanceCalendar(tk.Toplevel):
         eq_id = simpledialog.askinteger("Add Maintenance", "Enter Equipment ID (e.g., 211):", parent=self)
         if eq_id:
             try:
-                add_maintenance_history(eq_id, self.current_selected_date_str)
+                selected_date = self.current_selected_date_str
+                from ..pms import equipment_ids
+                if eq_id in equipment_ids():
+                    from .pms import PMSRecordDialog
+                    PMSRecordDialog(self, equipment_id=eq_id, initial_date=selected_date,
+                                    on_saved=lambda: self.reload_day(selected_date))
+                    return
+                add_maintenance_history(eq_id, selected_date)
                 self.refresh_calendar()
-                self.show_maintenance_info(self.current_selected_date_str) # Refresh list
+                self.show_maintenance_info(selected_date)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
 
@@ -281,6 +297,12 @@ class MaintenanceCalendar(tk.Toplevel):
         selected = self.tree.selection()
         if not selected:
             messagebox.showwarning("Select Record", "Please select a record from the list to edit.")
+            return
+
+        if selected[0] in self.pms_records:
+            from .pms import PMSRecordDialog
+            record = self.pms_records[selected[0]]
+            PMSRecordDialog(self, record=record, on_saved=lambda: self.reload_day(record['maintenance_date']))
             return
             
         item = self.tree.item(selected[0])
@@ -302,6 +324,17 @@ class MaintenanceCalendar(tk.Toplevel):
         if not selected:
             messagebox.showwarning("Select Record", "Please select a record from the list to delete.")
             return
+
+        if selected[0] in self.pms_records:
+            from ..pms import delete_record
+            record = self.pms_records[selected[0]]
+            if messagebox.askyesno('실적 삭제', f"QC {record['equipment_id']} / {record['task']} / {record['maintenance_date']} 삭제?", parent=self):
+                try:
+                    delete_record(record['id'], record['version'])
+                    self.reload_day(record['maintenance_date'])
+                except Exception as exc:
+                    messagebox.showerror('삭제 실패', str(exc), parent=self)
+            return
             
         item = self.tree.item(selected[0])
         eq_id = item['values'][1]
@@ -314,4 +347,8 @@ class MaintenanceCalendar(tk.Toplevel):
                 self.show_maintenance_info(date_str)
             except Exception as e:
                 messagebox.showerror("Error", str(e))
+
+    def reload_day(self, selected_date):
+        self.refresh_calendar()
+        self.show_maintenance_info(selected_date)
 

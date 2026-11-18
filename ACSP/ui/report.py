@@ -113,7 +113,7 @@ class DailyReportWindow(tk.Toplevel):
         self.stats = get_daily_report_stats()
         
         # Update summary labels
-        self.lbl_qc_overdue.config(text=f"QC Overdue: {self.stats['qc_rate']:.1f}% ({self.stats['qc_overdue']}/{self.stats['qc_total']}대)")
+        self.lbl_qc_overdue.config(text=f"QC 지연: {self.stats['qc_rate']:.1f}% ({self.stats['qc_overdue']}/{self.stats['qc_total']}대)\n호기별 통합 PMS · 45일 기준\n시행일 미등록: {self.stats['qc_unknown']}대")
         self.lbl_armgc_overdue.config(text=f"ARMGC Overdue: {self.stats['armgc_rate']:.1f}% ({self.stats['armgc_overdue']}/{self.stats['armgc_total']}대)")
         self.lbl_rm_count.config(text=f"Active RM: {len(self.stats['rm_list'])}건")
 

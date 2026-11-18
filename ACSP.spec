@@ -1,12 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_submodules
 
+# NumPy's native extensions import core modules dynamically (including _exceptions).
+# Collect core runtime modules explicitly; older PyInstaller hooks miss some of them.
+numpy_core_imports = collect_submodules('numpy._core', filter=lambda name: '.tests' not in name)
 
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
     datas=[('ACSP', 'ACSP'), ('CraneOn.png', '.'), ('icon.ico', '.')],
-    hiddenimports=[
+    hiddenimports=numpy_core_imports + [
+        'ACSP.work_tracking',
+        'ACSP.ui.work_dashboard',
+        'waitress',
+        'ACSP.pms',
+        'ACSP.pms_server',
+        'ACSP.ui.pms',
+        'ACSP.ui.pms_network',
         'ACSP.ui.report',
         'ACSP.ui.rm_list',
         'ACSP.logic.report_generator',
@@ -18,7 +29,6 @@ a = Analysis(
         'matplotlib.pyplot',
         'matplotlib.patches',
         'matplotlib.backends.backend_agg',
-        'matplotlib.backends.backend_pdf',
         'matplotlib.figure',
         'matplotlib.axes',
         'matplotlib.font_manager',
@@ -31,6 +41,12 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # This app uses PNG/ICO and Outlook COM, not AVIF, XML tooling or MFC UI.
+        'PIL.AvifImagePlugin',
+        'PIL._avif',
+        'win32ui',
+        'pywin',
+        'lxml',
         'pandas',
         'openpyxl',
         'jinja2',

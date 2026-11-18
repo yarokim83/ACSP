@@ -5,7 +5,18 @@ import calendar
 from datetime import datetime, timedelta
 from pathlib import Path
 
+
+class ManagedConnection(sqlite3.Connection):
+    """Commit/rollback and release the file handle when leaving a with block."""
+    def __exit__(self, *args):
+        try:
+            return super().__exit__(*args)
+        finally:
+            self.close()
+
 def get_db_path():
+    if os.environ.get('ACSP_DB_PATH'):
+        return os.path.abspath(os.environ['ACSP_DB_PATH'])
     if getattr(sys, 'frozen', False):
         base_dir = Path(sys.executable).parent
     else:
@@ -13,9 +24,15 @@ def get_db_path():
     return str(base_dir / 'acsp.db')
 
 def get_connection():
-    return sqlite3.connect(get_db_path())
+    conn = sqlite3.connect(get_db_path(), timeout=15, factory=ManagedConnection)
+    conn.execute('PRAGMA foreign_keys = ON')
+    return conn
 
 def init_database():
+    from .pms import backup_before_upgrade
+    backup_before_upgrade()
+    from .work_tracking import backup_before_upgrade as backup_work_upgrade
+    backup_work_upgrade()
     with get_connection() as conn:
         cursor = conn.cursor()
         # Create equipment table
@@ -88,6 +105,11 @@ def init_database():
         _populate_initial_recipients(cursor)
         
         conn.commit()
+
+    from .pms import init_pms
+    init_pms()
+    from .work_tracking import init_work_tracking
+    init_work_tracking()
 
 def _populate_initial_equipment(cursor):
     # ARMGC: 211-272
@@ -188,12 +210,18 @@ def calculate_equipment_status(conn, equipment_id):
                 next_maintenance_date = ?
             WHERE id = ?
         ''', (last_date_str, next_date.strftime('%Y-%m-%d'), equipment_id))
-    # If no history exists, we might normally clear it, but for this app 
-    # we assume initial data is sufficient or manual intervention.
+    else:
+        # A deleted/moved final QC record must not remain as a phantom completion.
+        cursor.execute("UPDATE equipment SET last_maintenance_date=NULL, next_maintenance_date=NULL WHERE id=? AND type='QC'", (equipment_id,))
 
 def add_maintenance_history(equipment_id, date_str):
     with get_connection() as conn:
         cursor = conn.cursor()
+        row = cursor.execute('SELECT type FROM equipment WHERE id = ?', (equipment_id,)).fetchone()
+        if not row:
+            raise ValueError('등록된 호기가 아닙니다.')
+        if row[0] == 'QC':
+            raise ValueError('QC PMS 입력 창에서 호기와 시행일을 입력하세요.')
         cursor.execute('''
             INSERT INTO maintenance_history (equipment_id, maintenance_date)
             VALUES (?, ?)
@@ -204,6 +232,12 @@ def add_maintenance_history(equipment_id, date_str):
 def update_maintenance_history(old_id, new_id, date_str):
     with get_connection() as conn:
         cursor = conn.cursor()
+        row = cursor.execute('SELECT type FROM equipment WHERE id = ?', (new_id,)).fetchone()
+        if not row or row[0] == 'QC':
+            raise ValueError('QC 실적은 통합 PMS 입력 창에서 관리하세요.')
+        old_row = cursor.execute('SELECT type FROM equipment WHERE id = ?', (old_id,)).fetchone()
+        if old_row and old_row[0] == 'QC':
+            raise ValueError('QC 실적은 통합 PMS 입력 창에서 수정하세요.')
         # Find the specific record (assuming simple one-per-day-per-unit constraint or just taking one)
         # To be safe, we use rowid or just update where matching.
         # But here we are editing "a" record on a specific date in the list.
@@ -276,161 +310,106 @@ def delete_email_recipient(recipient_id):
 # Report Stats Collector
 # -------------------------------------------------------------------------
 def get_daily_report_stats():
+    """Read three tables once; calculate current and monthly totals after closing NAS I/O."""
+    from .pms import unit_status_from_rows
     today = datetime.now()
-    
+    today_str = today.strftime('%Y-%m-%d')
+    month_prefix = today.strftime('%Y-%m')
+
+    # An explicit read transaction gives every table the same snapshot. No cache
+    # survives this call, so edits from other PCs appear on the next refresh.
     with get_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 1. Fetch RM items
-        cursor.execute('SELECT failure_date, failure_details, rm_request_date, remark FROM rm_list ORDER BY rm_request_date DESC')
-        rm_rows = cursor.fetchall()
-        rm_list = []
-        for r in rm_rows:
-            f_date, details, req_date, remark = r
-            try:
-                elapsed = (today - datetime.strptime(req_date, '%Y-%m-%d')).days
-                elapsed_str = f"+{elapsed}" if elapsed >= 0 else str(elapsed)
-            except Exception:
-                elapsed_str = "-"
-            rm_list.append({
-                'failure_date': f_date,
-                'details': details,
-                'rm_request_date': req_date,
-                'elapsed_days': elapsed_str,
-                'remark': remark
-            })
-            
-        # 2. Fetch equipment for QC and ARMGC overdue calculation
-        cursor.execute('SELECT id, last_maintenance_date, type FROM equipment ORDER BY id')
-        eq_rows = cursor.fetchall()
-        
-        qc_data = []
-        armgc_data = []
-        
-        for r in eq_rows:
-            eq_id, last_date_str, eq_type = r[0], r[1], r[2] if len(r) > 2 else 'ARMGC'
-            try:
-                days_passed = (today - datetime.strptime(last_date_str, '%Y-%m-%d')).days
-            except Exception:
-                days_passed = 0
-                
-            item = {'id': eq_id, 'days_passed': days_passed, 'is_overdue': days_passed > 45}
-            if eq_type == 'QC':
-                qc_data.append(item)
-            else:
-                armgc_data.append(item)
-                
-        # 3. Monthly PMS assignments for current month
-        month_prefix = today.strftime('%Y-%m')
-        cursor.execute('''
-            SELECT m.equipment_id, m.maintenance_date, e.type
-            FROM maintenance_history m
-            JOIN equipment e ON m.equipment_id = e.id
-            WHERE m.maintenance_date LIKE ?
-            ORDER BY m.maintenance_date ASC, e.type DESC, m.equipment_id ASC
-        ''', (f"{month_prefix}%",))
-        history_rows = cursor.fetchall()
-        
-        calendar_assignments = {} # day_num -> {'QC': [], 'ARMGC': []}
-        for h in history_rows:
-            eq_id, m_date, eq_type = h
-            try:
-                day_num = int(m_date.split('-')[2])
-                if day_num not in calendar_assignments:
-                    calendar_assignments[day_num] = {'QC': [], 'ARMGC': []}
-                t_key = 'QC' if eq_type == 'QC' else 'ARMGC'
-                if str(eq_id) not in calendar_assignments[day_num][t_key]:
-                    calendar_assignments[day_num][t_key].append(str(eq_id))
-            except Exception:
-                pass
+        conn.execute('BEGIN')
+        rm_rows = conn.execute('SELECT failure_date, failure_details, rm_request_date, remark FROM rm_list ORDER BY rm_request_date DESC').fetchall()
+        eq_rows = conn.execute('SELECT id, last_maintenance_date, type FROM equipment ORDER BY id').fetchall()
+        history_rows = conn.execute('SELECT equipment_id, maintenance_date FROM maintenance_history ORDER BY maintenance_date, equipment_id').fetchall()
 
+
+    rm_list = []
+    for f_date, details, req_date, remark in rm_rows:
+        try:
+            elapsed = (today - datetime.strptime(req_date, '%Y-%m-%d')).days
+            elapsed_str = f"+{elapsed}" if elapsed >= 0 else str(elapsed)
+        except (TypeError, ValueError):
+            elapsed_str = '-'
+        rm_list.append(dict(failure_date=f_date, details=details, rm_request_date=req_date,
+                            elapsed_days=elapsed_str, remark=remark))
+
+    def qc_at(value):
+        return unit_status_from_rows(eq_rows, history_rows, (), value)
+
+    qc_data = qc_at(today_str)
+    armgc_data = []
+    for eq_id, last_date, kind in eq_rows:
+        if kind == 'QC':
+            continue
+        try:
+            days = (today - datetime.strptime(last_date, '%Y-%m-%d')).days
+        except (TypeError, ValueError):
+            days = 0
+        armgc_data.append(dict(id=eq_id, days_passed=days, is_overdue=days > 45))
+
+    equipment_types = {eq:kind for eq, _, kind in eq_rows}
+    calendar_assignments = {}
+    for eq_id, value in history_rows:
+        if eq_id not in equipment_types or not value or not value.startswith(month_prefix):
+            continue
+        try:
+            day = int(value.split('-')[2])
+        except (ValueError, IndexError):
+            continue
+        entry = calendar_assignments.setdefault(day, {'QC': [], 'ARMGC': []})
+        kind = 'QC' if equipment_types[eq_id] == 'QC' else 'ARMGC'
+        if str(eq_id) not in entry[kind]:
+            entry[kind].append(str(eq_id))
     qc_total = len(qc_data)
-    qc_overdue = len([d for d in qc_data if d['is_overdue']])
-    qc_rate = (qc_overdue / qc_total * 100) if qc_total > 0 else 0
-    
+    qc_overdue = sum(d['is_overdue'] for d in qc_data)
+    qc_rate = qc_overdue / qc_total * 100 if qc_total else 0
     armgc_total = len(armgc_data)
-    armgc_overdue = len([d for d in armgc_data if d['is_overdue']])
-    armgc_rate = (armgc_overdue / armgc_total * 100) if armgc_total > 0 else 0
+    armgc_overdue = sum(d['is_overdue'] for d in armgc_data)
+    armgc_rate = armgc_overdue / armgc_total * 100 if armgc_total else 0
 
-    # Calculate historic monthly overdue rates (1월 ~ 현재월)
-    # Past months: calculated as of the last day of each month.
-    # Current month: calculated as of today (메일 배송일 실적).
+    history_by_unit = {}
+    for eq_id, value in history_rows:
+        if value is not None:
+            history_by_unit.setdefault(eq_id, []).append(value)
+    qc_ids = [eq for eq, _, kind in eq_rows if kind == 'QC']
+    armgc_ids = [eq for eq, _, kind in eq_rows if kind == 'ARMGC']
+    initial_dates = {eq:value for eq, value, _ in eq_rows}
     history_qc = {}
     history_armgc = {}
-    
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, last_maintenance_date, type FROM equipment ORDER BY id')
-        eq_all = cursor.fetchall()
-        
-        qc_ids = [r[0] for r in eq_all if (r[2] if len(r) > 2 else 'ARMGC') == 'QC']
-        armgc_ids = [r[0] for r in eq_all if (r[2] if len(r) > 2 else 'ARMGC') == 'ARMGC']
-        initial_dates = {r[0]: r[1] for r in eq_all}
-        
-        for m in range(1, today.month + 1):
-            if m == today.month:
-                history_qc[m] = round(qc_rate)
-                history_armgc[m] = round(armgc_rate)
-            else:
-                last_day = calendar.monthrange(today.year, m)[1]
-                target_date = datetime(today.year, m, last_day)
-                target_date_str = target_date.strftime('%Y-%m-%d')
-                
-                # QC overdue count on last day of month m
-                q_overdue = 0
-                for q_id in qc_ids:
-                    cursor.execute('''
-                        SELECT maintenance_date FROM maintenance_history
-                        WHERE equipment_id = ? AND maintenance_date <= ?
-                        ORDER BY maintenance_date DESC LIMIT 1
-                    ''', (q_id, target_date_str))
-                    row = cursor.fetchone()
-                    last_m_str = row[0] if row else initial_dates.get(q_id)
-                    try:
-                        days = (target_date - datetime.strptime(last_m_str, '%Y-%m-%d')).days
-                    except Exception:
-                        days = 0
-                    if days > 45:
-                        q_overdue += 1
-                        
-                # ARMGC overdue count on last day of month m
-                a_overdue = 0
-                for a_id in armgc_ids:
-                    cursor.execute('''
-                        SELECT maintenance_date FROM maintenance_history
-                        WHERE equipment_id = ? AND maintenance_date <= ?
-                        ORDER BY maintenance_date DESC LIMIT 1
-                    ''', (a_id, target_date_str))
-                    row = cursor.fetchone()
-                    last_m_str = row[0] if row else initial_dates.get(a_id)
-                    try:
-                        days = (target_date - datetime.strptime(last_m_str, '%Y-%m-%d')).days
-                    except Exception:
-                        days = 0
-                    if days > 45:
-                        a_overdue += 1
-                        
-                history_qc[m] = round((q_overdue / len(qc_ids) * 100) if qc_ids else 0)
-                history_armgc[m] = round((a_overdue / len(armgc_ids) * 100) if armgc_ids else 0)
-
-    armgc_pms_count = sum(len(day_data.get('ARMGC', [])) for day_data in calendar_assignments.values() if isinstance(day_data, dict))
+    for month in range(1, today.month + 1):
+        if month == today.month:
+            history_qc[month] = round(qc_rate)
+            history_armgc[month] = round(armgc_rate)
+            continue
+        target = datetime(today.year, month, calendar.monthrange(today.year, month)[1])
+        target_str = target.strftime('%Y-%m-%d')
+        qc_count = sum(row['is_overdue'] for row in qc_at(target_str))
+        armgc_count = 0
+        for eq_id in armgc_ids:
+            last_date = max((v for v in history_by_unit.get(eq_id, []) if v <= target_str),
+                            default=initial_dates.get(eq_id))
+            try:
+                days = (target - datetime.strptime(last_date, '%Y-%m-%d')).days
+            except (TypeError, ValueError):
+                days = 0
+            if days > 45:
+                armgc_count += 1
+        history_qc[month] = round(qc_count / len(qc_ids) * 100) if qc_ids else 0
+        history_armgc[month] = round(armgc_count / len(armgc_ids) * 100) if armgc_ids else 0
 
     return {
-        'today_str': today.strftime('%Y-%m-%d'),
+        'today_str': today_str,
         'today_korean': today.strftime('%Y년 %m월 %d일'),
-        'year': today.year,
-        'month': today.month,
-        'rm_list': rm_list,
-        'qc_data': qc_data,
-        'qc_total': qc_total,
-        'qc_overdue': qc_overdue,
-        'qc_rate': qc_rate,
-        'armgc_data': armgc_data,
-        'armgc_total': armgc_total,
-        'armgc_overdue': armgc_overdue,
-        'armgc_rate': armgc_rate,
-        'armgc_pms_count': armgc_pms_count,
+        'year': today.year, 'month': today.month, 'rm_list': rm_list,
+        'qc_data': qc_data, 'qc_total': qc_total, 'qc_overdue': qc_overdue, 'qc_rate': qc_rate,
+        'qc_unknown': sum(q['unknown'] > 0 for q in qc_data),
+        'qc_unknown_tasks': sum(q['unknown'] for q in qc_data),
+        'qc_legacy': 0,
+        'armgc_data': armgc_data, 'armgc_total': armgc_total,
+        'armgc_overdue': armgc_overdue, 'armgc_rate': armgc_rate,
+        'armgc_pms_count': sum(len(day['ARMGC']) for day in calendar_assignments.values()),
         'calendar_assignments': calendar_assignments,
-        'history_qc': history_qc,
-        'history_armgc': history_armgc
+        'history_qc': history_qc, 'history_armgc': history_armgc
     }

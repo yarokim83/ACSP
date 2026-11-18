@@ -9,6 +9,9 @@ sys.path.append(str(current_dir))
 from ACSP.main import main
 
 if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == '--self-test-report':
+        from ACSP.tools.check_report import check_report
+        sys.exit(check_report(sys.argv[2]))
     try:
         main()
     except Exception as e:

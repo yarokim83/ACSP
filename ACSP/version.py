@@ -26,7 +26,19 @@
 #   v2.0.0  - Major: Rebranded application name to CRANEON with CraneOn logo integration
 #   v2.0.1  - Fix: Section 4 ARMGC PMS actual count calculation in daily report email body
 
-__version__ = "2.0.1"
+#   v3.0.0  - QC PMS four-task history, intranet entry, completion list and task-aware scheduling
+#   v4.0.0  - Per-work QC/ARMGC completion dashboard, persistent exclusions and change history
+#   v4.0.1  - Faded excluded tiles, prominent work title and clearer dashboard selection/styles
+#   v4.0.2  - Simplify sidebar menus and open the work completion dashboard at startup
+#   v4.0.3  - Restore the equipment status startup screen while keeping simplified menus
+#   v4.0.4  - Open work completion in a separate window while retaining the equipment home screen
+#   v4.0.5  - Preserve equipment sorting across automatic refreshes, filters and maintenance updates
+#   v4.0.6  - Bundle NumPy core runtime modules and verify report rendering inside the EXE
+#   v4.0.7  - Restore legacy QC overdue reporting until per-task records are available
+#   v4.0.8  - Smaller NAS executable and single-snapshot report queries without changing results
+#   v5.0.0  - Restore unified QC PMS, retain task archive and add unit-history worker metadata
+#   v5.0.1  - Simplify QC PMS entry to unit/date and preserve existing metadata on edits
+#   v5.0.2  - Remove QC calculation explanatory sentences from generated email
+__version__ = "5.0.2"
 __app_name__ = "CRANEON"
 __full_name__ = "CraneOn Schedule & Management"
-

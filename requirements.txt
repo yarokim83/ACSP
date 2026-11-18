@@ -1,0 +1,4 @@
+Pillow>=10
+matplotlib>=3.8
+waitress>=3.0.2,<4
+pywin32>=306; sys_platform == 'win32'

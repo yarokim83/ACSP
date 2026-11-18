@@ -73,7 +73,7 @@ def apply_styles(root):
                     foreground=COLORS['text_light'],
                     borderwidth=0,
                     anchor='w',
-                    padding=10)
+                    padding=6)
     style.map('Sidebar.TButton',
               background=[('active', COLORS['secondary'])],
               foreground=[('active', 'white')])

@@ -18,7 +18,7 @@ class ReportGenerator:
         """Generates a stacked bar chart: blue (0~45 days), red (above 45 days only) — matching program graph style."""
         fig, ax = plt.subplots(figsize=(8, 3.0), dpi=95)
         
-        crane_ids = [str(d['id']) for d in data]
+        crane_ids = [str(d['id']) + ('*' if d.get('unknown') else '') for d in data]
         days_passed = [d['days_passed'] for d in data]
         
         # Stacked bars: blue portion (0~45), red portion (above 45 only)
@@ -60,6 +60,8 @@ class ReportGenerator:
                 bbox=dict(boxstyle='square,pad=0.4', facecolor='white', edgecolor='#0000FF', linewidth=1.5))
                 
         ax.grid(axis='y', linestyle=':', alpha=0.3)
+        if any(d.get('unknown') for d in data):
+            ax.set_xlabel('* PMS 시행일 미등록 · 호기별 통합 45일 기준', fontsize=8)
         plt.tight_layout()
         
         temp_dir = tempfile.gettempdir()
